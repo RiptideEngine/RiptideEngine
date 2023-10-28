@@ -1,0 +1,66 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<LangVersion>preview</LangVersion>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <None Remove="Resources\Explosion.wav" />
+	  <None Remove="Resources\Explosion2.wav" />
+	  <None Remove="Resources\NIVIRO - The Labyrinth.wav" />
+	  <None Remove="Resources\Rival x Cadmium - Seasons.ogg" />
+	  <None Remove="Resources\Rival x Cadmium - Seasons.wav" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="Resources\Explosion.wav">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Include="Resources\Explosion2.wav">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Include="Resources\NIVIRO - The Labyrinth.wav">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Include="Resources\Rival x Cadmium - Seasons.ogg">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Include="Resources\Rival x Cadmium - Seasons.wav">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="Silk.NET.Assimp" Version="2.17.1" />
+	  <PackageReference Include="Silk.NET.Input" Version="2.17.1" />
+	  <PackageReference Include="Silk.NET.Windowing" Version="2.17.1" />
+	  <PackageReference Include="SixLabors.ImageSharp" Version="3.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\RiptideEngine.Audio\RiptideEngine.Audio.csproj" />
+		<ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
+		<ProjectReference Include="..\RiptideRendering\RiptideRendering.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
+		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Libraries\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Resources\FullscreenBlit.hlsl">
+	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
+</Project>

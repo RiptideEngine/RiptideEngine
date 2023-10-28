@@ -1,0 +1,17 @@
+﻿global using RiptideEngine.Core;
+global using RiptideEngine.SceneGraph;
+global using RiptideRendering;
+global using RPCSToolkit.Attributes;
+global using System.Diagnostics;
+global using System.Diagnostics.CodeAnalysis;
+global using System.Numerics;
+global using System.Reflection;
+global using System.Runtime.CompilerServices;
+global using System.Runtime.InteropServices;
+global using System.Text.Json;
+global using System.Text.Json.Serialization;
+global using System.Text.Json.Serialization.Metadata;
+global using SNPlane = System.Numerics.Plane;
+global using RiptideMathematics;
+global using RiptideDatabase;
+global using RiptideFoundation.Database;

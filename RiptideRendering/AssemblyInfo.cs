@@ -1,0 +1,1 @@
+﻿[assembly: InternalsVisibleTo("RiptideRendering.Direct3D12")]

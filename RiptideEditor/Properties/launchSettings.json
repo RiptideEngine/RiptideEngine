@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "RiptideEditor": {
+      "commandName": "Project",
+      "commandLineArgs": "C:/Users/Hoang/Desktop/Riptide-Example"
+    }
+  }
+}

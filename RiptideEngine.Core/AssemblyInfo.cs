@@ -1,0 +1,1 @@
+﻿[assembly: AssemblyDescription("A library contains API related to Mathematical, Standard Library Extensions, Helpers and some object-oriented classes revolve around Riptide's ecosystem.")]

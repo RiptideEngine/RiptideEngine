@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>preview</LangVersion>
+		<Nullable>enable</Nullable>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<OutputPath>$(SolutionDir)RiptideEditor\bin\$(Configuration)</OutputPath>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
+		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Silk.NET.Direct3D12" Version="2.17.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\RiptideRendering\RiptideRendering.csproj">
+			<Private>false</Private>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
+	</ItemGroup>
+
+	<Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+		<Exec Command="dxc CSMipmapGenerate.hlsl -E ROOT_SIGNATURE -T rootsig_1_0 -Fo CSMipmapGenerate_RS.cso" />
+		<Exec Command="dxc CSMipmapGenerate.hlsl -E main -T cs_6_0 -Qstrip_rootsignature -Fo CSMipmapGenerate_POT.cso" />
+	</Target>
+
+</Project>

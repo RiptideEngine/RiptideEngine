@@ -1,0 +1,4 @@
+﻿{
+	"Name": "Object B",
+	"Other": "Reference1.txt"
+}
