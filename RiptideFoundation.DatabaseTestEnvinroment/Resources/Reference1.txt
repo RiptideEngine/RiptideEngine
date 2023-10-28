@@ -1,4 +1,0 @@
-﻿{
-	"Name": "Object A",
-	"Other": "Reference2.txt"
-}
