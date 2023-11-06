@@ -1,22 +1,7 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class RootSignatureStorage : IDisposable {
-    private struct Entry : IDisposable {
-        public ID3D12RootSignature* RootSignature;
-        public ID3D12VersionedRootSignatureDeserializer* Deserializer;
-
-        public Entry(ID3D12RootSignature* pRootSig, ID3D12VersionedRootSignatureDeserializer* pDeserializer) {
-            RootSignature = pRootSig;
-            Deserializer = pDeserializer;
-        }
-
-        public void Dispose() {
-            RootSignature->Release();
-            Deserializer->Release();
-        }
-    }
-
-    private readonly Dictionary<uint, Entry> _entries;
+    private readonly Dictionary<int, nint> _entries;
     private readonly object _lock;
 
     private D3D12RenderingContext _context;
@@ -28,58 +13,72 @@ internal sealed unsafe class RootSignatureStorage : IDisposable {
         _context = context;
     }
 
-    public void Get(ReadOnlySpan<byte> bytecode, ID3D12RootSignature** ppOutputSignature, ID3D12VersionedRootSignatureDeserializer** ppOutputDeserializer) {
-        Get(Unsafe.AsPointer(ref MemoryMarshal.GetReference(bytecode)), (nuint)bytecode.Length, ppOutputSignature, ppOutputDeserializer);
-    }
+    public void Get(RootSignatureDesc desc, ID3D12RootSignature** ppOutputSignature) {
+        int hash = HashCode.Combine(desc.NumParameters, desc.NumStaticSamplers, desc.Flags);
 
-    public void Get(void* pBytecode, nuint bytecodeSize, ID3D12RootSignature** ppOutputSignature, ID3D12VersionedRootSignatureDeserializer** ppOutputDeserializer) {
-        uint hash = Crc32C.Compute((byte*)pBytecode, bytecodeSize);
-        int hr;
+        for (uint i = 0; i < desc.NumParameters; i++) {
+            ref readonly var param = ref desc.PParameters[i];
+            hash = HashCode.Combine(hash, param.ParameterType, param.ShaderVisibility);
 
-        lock (_lock) {
-            if (_entries.TryGetValue(hash, out var entry)) {
-                *ppOutputSignature = entry.RootSignature;
-                *ppOutputDeserializer = entry.Deserializer;
-
-                return;
-            }
-
-            using ComPtr<ID3D12VersionedRootSignatureDeserializer> pOutputDeserializer = default;
-
-            hr = _context.D3D12.CreateVersionedRootSignatureDeserializer(pBytecode, bytecodeSize, SilkMarshal.GuidPtrOf<ID3D12VersionedRootSignatureDeserializer>(), (void**)pOutputDeserializer.GetAddressOf());
-            Marshal.ThrowExceptionForHR(hr);
-
-            VersionedRootSignatureDesc* vdesc;
-            hr = pOutputDeserializer.GetRootSignatureDescAtVersion(D3DRootSignatureVersion.Version10, &vdesc);
-            Marshal.ThrowExceptionForHR(hr);
-
-            // Validate root signature
-            {
-                for (uint i = 0; i < vdesc->Desc10.NumParameters; i++) {
-                    ref readonly var param = ref vdesc->Desc10.PParameters[i];
-
-                    if (param.ParameterType != RootParameterType.TypeDescriptorTable) continue;
-
+            switch (param.ParameterType) {
+                case RootParameterType.TypeDescriptorTable:
                     ref readonly var table = ref param.DescriptorTable;
-
-                    if (table.PDescriptorRanges[table.NumDescriptorRanges - 1].NumDescriptors == uint.MaxValue) throw new NotSupportedException("Unbounded number of descriptor is not supported.");
+                    hash = HashCode.Combine(hash, table.NumDescriptorRanges);
 
                     for (uint r = 0; r < table.NumDescriptorRanges; r++) {
                         ref readonly var range = ref table.PDescriptorRanges[r];
 
-                        if (range.OffsetInDescriptorsFromTableStart != uint.MaxValue) throw new NotSupportedException("Explicit descriptor offset is not supported.");
+                        hash = HashCode.Combine(hash, range.RangeType, range.BaseShaderRegister, range.RegisterSpace, range.NumDescriptors, range.OffsetInDescriptorsFromTableStart);
                     }
-                }
+                    break;
+
+                case RootParameterType.Type32BitConstants:
+                    ref readonly var constants = ref param.Constants;
+
+                    hash = HashCode.Combine(hash, constants.ShaderRegister, constants.RegisterSpace, constants.Num32BitValues);
+                    break;
+
+                case RootParameterType.TypeCbv or RootParameterType.TypeSrv or RootParameterType.TypeUav:
+                    ref readonly var descriptor = ref param.Descriptor;
+
+                    hash = HashCode.Combine(hash, descriptor.ShaderRegister, descriptor.RegisterSpace);
+                    break;
+            }
+        }
+
+        for (uint i = 0; i < desc.NumStaticSamplers; i++) {
+            ref readonly var sdesc = ref desc.PStaticSamplers[i];
+
+            hash = HashCode.Combine(hash, sdesc.Filter, sdesc.AddressU, sdesc.AddressV, sdesc.AddressW, sdesc.MaxAnisotropy);
+            hash = HashCode.Combine(hash, sdesc.ComparisonFunc);
+            hash = HashCode.Combine(hash, sdesc.MinLOD, sdesc.MaxLOD, sdesc.MipLODBias);
+            hash = HashCode.Combine(hash, sdesc.BorderColor);
+            hash = HashCode.Combine(hash, sdesc.ShaderRegister, sdesc.RegisterSpace, sdesc.ShaderVisibility);
+        }
+
+        int hr;
+
+        lock (_lock) {
+            if (_entries.TryGetValue(hash, out var entry)) {
+                *ppOutputSignature = (ID3D12RootSignature*)entry;
+
+                return;
             }
 
-            using ComPtr<ID3D12RootSignature> pOutputRootSig = default;
-            hr = _context.Device->CreateRootSignature(1, pBytecode, bytecodeSize, SilkMarshal.GuidPtrOf<ID3D12RootSignature>(), (void**)pOutputRootSig.GetAddressOf());
+            using ComPtr<ID3D10Blob> pSerialized = default;
+            using ComPtr<ID3D10Blob> pError = default;
+            hr = _context.D3D12.SerializeRootSignature(&desc, D3DRootSignatureVersion.Version10, pSerialized.GetAddressOf(), pError.GetAddressOf());
+            if (hr < 0) {
+                throw new Exception($"Failed to serialize Root Signature. Error: '{new string((sbyte*)pError.GetBufferPointer(), 0, (int)pError.GetBufferSize())}'.");
+            }
+
+            ID3D12RootSignature* pRoot;
+            hr = _context.Device->CreateRootSignature(1, pSerialized.GetBufferPointer(), pSerialized.GetBufferSize(), SilkMarshal.GuidPtrOf<ID3D12RootSignature>(), (void**)&pRoot);
             Marshal.ThrowExceptionForHR(hr);
 
-            _entries.Add(hash, new Entry(pOutputRootSig.Handle, pOutputDeserializer.Handle));
+            _entries.Add(hash, (nint)pRoot);
 
-            *ppOutputSignature = pOutputRootSig.Detach();
-            *ppOutputDeserializer = pOutputDeserializer.Detach();
+            *ppOutputSignature = pRoot;
         }
     }
 
@@ -90,7 +89,7 @@ internal sealed unsafe class RootSignatureStorage : IDisposable {
 
         lock (_lock) {
             foreach ((_, var entry) in _entries) {
-                entry.Dispose();
+                ((ID3D12RootSignature*)entry)->Release();
             }
             _entries.Clear();
         }

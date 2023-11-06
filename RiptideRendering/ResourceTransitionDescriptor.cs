@@ -16,27 +16,4 @@ public enum ResourceStates {
     Present = 1 << 9,
 }
 
-public readonly struct ResourceTransitionTarget {
-    public readonly ulong ResourceHandle;
-
-    public ResourceTransitionTarget(NativeBufferHandle buffer) {
-        ResourceHandle = buffer.Handle;
-    }
-
-    public ResourceTransitionTarget(NativeTextureHandle texture) {
-        ResourceHandle = texture.Handle;
-    }
-
-    public static implicit operator ResourceTransitionTarget(NativeBufferHandle buffer) => new(buffer);
-    public static implicit operator ResourceTransitionTarget(NativeTextureHandle texture) => new(texture);
-
-    public static implicit operator ResourceTransitionTarget(GpuBuffer buffer) => new(buffer);
-    public static implicit operator ResourceTransitionTarget(GpuTexture texture) => new(texture);
-}
-
-public readonly struct ResourceTransitionDescriptor(ResourceTransitionTarget target, ResourceStates oldStates, ResourceStates newStates) {
-    public readonly ResourceTransitionTarget Target = target;
-
-    public readonly ResourceStates OldStates = oldStates;
-    public readonly ResourceStates NewStates = newStates;
-}
+public readonly record struct ResourceTransitionDescriptor(NativeResourceHandle Target, ResourceStates OldStates, ResourceStates NewStates);

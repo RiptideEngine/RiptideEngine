@@ -41,12 +41,26 @@ public enum ImportingError {
     /// </summary>
     EmptyResult = 6,
 
-    MissingCatalogue = 16,
-    MissingProtocolProvider = 17,
-    MissingResourceProvider = 18,
-    MissingImportingAPI = 19,
+    /// <summary>
+    /// Resource data is valid, but contains an unsupported property.
+    /// </summary>
+    UnsupportedProperties = 7,
 
-    CorruptedResourceData = 64,
+    MissingCatalogue = 256,
+    MissingProtocolProvider = 257,
+    MissingResourceProvider = 258,
+
+    /// <summary>
+    /// Missing API that handle resource importing.
+    /// </summary>
+    MissingImportingAPI = 259,
+
+    /// <summary>
+    /// Missing API that handle operations other than resource importing.
+    /// </summary>
+    MissingAPI = 260,
+
+    CorruptedResourceData = 513,
 }
 
 public struct ImportingResult {

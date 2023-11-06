@@ -119,7 +119,7 @@ internal unsafe struct StagingDescriptorHeapLinearAllocator {
     }
 
     public bool TryAllocate(uint numDescriptors, uint descriptorIncrementSize, out CpuDescriptorHandle handle) {
-        if (_allocIndex + numDescriptors >= _numDescriptors) {
+        if (_allocIndex + numDescriptors > _numDescriptors) {
             handle = D3D12Helper.UnknownCpuHandle;
             return false;
         }

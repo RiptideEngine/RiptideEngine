@@ -6,7 +6,7 @@ internal sealed class FileProtocolProvider : ProtocolProvider {
 
         if (!File.Exists(path)) return default;
 
-        var optionsFile = Path.Join(Path.GetFileNameWithoutExtension(path.AsSpan()), ".options", Path.GetExtension(path.AsSpan()));
+        var optionsFile = Path.Join(path, AssetFileExtensions.ImporterOptions);
 
         return new ResourceStreams(File.OpenRead(path), File.Exists(optionsFile) ? File.OpenRead(optionsFile) : null);
     }

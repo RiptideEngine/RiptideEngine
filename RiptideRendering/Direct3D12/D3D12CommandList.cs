@@ -1,4 +1,6 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using RPCSToolkit;
+
+namespace RiptideRendering.Direct3D12;
 
 internal unsafe partial class D3D12CommandList : CommandList {
     private const string UnnamedCommandList = $"<Unnamed {nameof(D3D12CommandList)}>.{nameof(pCommandList)}";
@@ -6,12 +8,9 @@ internal unsafe partial class D3D12CommandList : CommandList {
     private ComPtr<ID3D12GraphicsCommandList> pCommandList;
     private ID3D12CommandAllocator* pAllocator;
     private readonly D3D12RenderingContext _context;
-    private D3D12GraphicalShader? _graphicalShader;
-    private D3D12ComputeShader? _computeShader;
 
     private readonly DynamicUploadBuffer _uploadBuffer;
     private readonly DescriptorCommitter _descCommitter;
-    private readonly List<ResourceBarrier> _barriers;
 
     public ID3D12GraphicsCommandList* CommandList => pCommandList;
 
@@ -53,7 +52,6 @@ internal unsafe partial class D3D12CommandList : CommandList {
         pCommandList.Handle = pOutputList;
 
         _descCommitter = new(context);
-        _barriers = new();
 
         _uploadBuffer = new(context.UploadBufferStorage);
 
@@ -84,75 +82,75 @@ internal unsafe partial class D3D12CommandList : CommandList {
 
     public override void TranslateResourceStates(ReadOnlySpan<ResourceTransitionDescriptor> descs) {
         EnsureNotClosed();
-        _barriers.EnsureCapacity(descs.Length);
 
-        foreach (ref readonly var desc in descs) {
-            var oldStates = D3D12Convert.Convert(desc.OldStates);
-            var newStates = D3D12Convert.Convert(desc.NewStates);
+        List<ResourceBarrier> barriers = ListPool<ResourceBarrier>.Shared.Get();
 
-            if (oldStates != newStates) {
-                ResourceBarrier barrier = new() {
+        try {
+            for (int i = 0; i < descs.Length; i++) {
+                ref readonly var desc = ref descs[i];
+
+                barriers.Add(new() {
                     Type = ResourceBarrierType.Transition,
                     Transition = new() {
-                        PResource = (ID3D12Resource*)desc.Target.ResourceHandle,
+                        PResource = (ID3D12Resource*)desc.Target.Handle,
                         Subresource = uint.MaxValue,
-                        StateBefore = oldStates,
-                        StateAfter = newStates,
-                    },
-                };
-                _barriers.Add(barrier);
-            } else if (desc.NewStates == ResourceStates.UnorderedAccess) {
-                _barriers.Add(new() {
-                    Type = ResourceBarrierType.Uav,
-                    UAV = new() {
-                        PResource = (ID3D12Resource*)desc.Target.ResourceHandle,
+                        StateBefore = D3D12Convert.Convert(desc.OldStates),
+                        StateAfter = D3D12Convert.Convert(desc.NewStates),
                     },
                 });
+
+                if (desc.NewStates.HasFlag(ResourceStates.UnorderedAccess)) {
+                    barriers.Add(new() {
+                        Type = ResourceBarrierType.Uav,
+                        UAV = new() {
+                            PResource = (ID3D12Resource*)desc.Target.Handle,
+                        },
+                    });
+                }
             }
+
+            pCommandList.ResourceBarrier((uint)barriers.Count, CollectionsMarshal.AsSpan(barriers));
+        } finally {
+            ListPool<ResourceBarrier>.Shared.Return(barriers);
         }
-
-        if (_barriers.Count == 0) return;
-
-        pCommandList.ResourceBarrier((uint)_barriers.Count, (ResourceBarrier*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(CollectionsMarshal.AsSpan(_barriers))));
-        _barriers.Clear();
     }
 
-    public override void SetRenderTarget(RenderTargetHandle renderTarget) {
+    public override void SetRenderTarget(NativeRenderTargetView renderTarget) {
         EnsureNotClosed();
         CpuDescriptorHandle handle = new() { Ptr = (nuint)renderTarget.Handle, };
         pCommandList.OMSetRenderTargets(1, &handle, false, (CpuDescriptorHandle*)null);
     }
 
-    public override void SetRenderTarget(RenderTargetHandle renderTarget, DepthStencilHandle? depthTexture) {
+    public override void SetRenderTarget(NativeRenderTargetView renderTarget, NativeDepthStencilView depthTexture) {
         EnsureNotClosed();
         var rtv = Unsafe.BitCast<ulong, CpuDescriptorHandle>(renderTarget.Handle);
 
-        if (depthTexture.HasValue) {
-            CpuDescriptorHandle depthHandle = new() { Ptr = (nuint)depthTexture.Value.Handle };
+        if (depthTexture.Handle != 0) {
+            CpuDescriptorHandle depthHandle = new() { Ptr = (nuint)depthTexture.Handle };
             pCommandList.OMSetRenderTargets(1, rtv, false, &depthHandle);
         } else {
             pCommandList.OMSetRenderTargets(1, rtv, false, null);
         }
     }
 
-    public override void ClearDepthTexture(DepthStencilHandle handle, DepthTextureClearFlags flags, float depth, byte stencil) {
+    public override void ClearDepthTexture(NativeDepthStencilView handle, DepthClearFlags flags, float depth, byte stencil) {
         EnsureNotClosed();
         pCommandList.ClearDepthStencilView(new() { Ptr = (nuint)handle.Handle, }, (ClearFlags)flags, depth, stencil, 0, (Silk.NET.Maths.Box2D<int>*)null);
     }
 
-    public override void ClearDepthTexture(DepthStencilHandle handle, DepthTextureClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas) {
+    public override void ClearDepthTexture(NativeDepthStencilView handle, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas) {
         EnsureNotClosed();
         fixed (Bound2D<int>* pAreas = clearAreas) {
             pCommandList.ClearDepthStencilView(new() { Ptr = (nuint)handle.Handle }, (ClearFlags)flags, depth, stencil, (uint)clearAreas.Length, (Silk.NET.Maths.Box2D<int>*)pAreas);
         }
     }
 
-    public override void ClearRenderTarget(RenderTargetHandle handle, Color color) {
+    public override void ClearRenderTarget(NativeRenderTargetView handle, Color color) {
         EnsureNotClosed();
         pCommandList.ClearRenderTargetView(new() { Ptr = (nuint)handle.Handle }, &color.R, 0, (Silk.NET.Maths.Box2D<int>*)null);
     }
 
-    public override void ClearRenderTarget(RenderTargetHandle handle, Color color, ReadOnlySpan<Bound2D<int>> clearAreas) {
+    public override void ClearRenderTarget(NativeRenderTargetView handle, Color color, ReadOnlySpan<Bound2D<int>> clearAreas) {
         EnsureNotClosed();
         fixed (Bound2D<int>* pBoxes = clearAreas) {
             pCommandList.ClearRenderTargetView(new() { Ptr = (nuint)handle.Handle }, &color.R, (uint)clearAreas.Length, (Silk.NET.Maths.Box2D<int>*)pBoxes);
@@ -166,9 +164,6 @@ internal unsafe partial class D3D12CommandList : CommandList {
         Marshal.ThrowExceptionForHR(hr);
 
         IsClosed = true;
-
-        _graphicalShader?.DecrementReference(); _graphicalShader = null;
-        _computeShader?.DecrementReference(); _computeShader = null;
     }
 
     public AllocatedUploadRegion ReserveUploadRegion(ulong size) => _uploadBuffer.Allocate(size);
@@ -213,9 +208,6 @@ internal unsafe partial class D3D12CommandList : CommandList {
             _context.RenderingQueue.ReturnAllocator(_context.RenderingQueue.NextFenceValue - 1, pAllocator);
             pAllocator = null;
         }
-
-        _graphicalShader?.DecrementReference(); _graphicalShader = null;
-        _computeShader?.DecrementReference(); _computeShader = null;
 
         _descCommitter.Dispose(_context.RenderingQueue.NextFenceValue - 1);
         _context.CommandListPool.Return(this);

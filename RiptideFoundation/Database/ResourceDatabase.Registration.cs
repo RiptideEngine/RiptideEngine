@@ -49,4 +49,7 @@ partial class ResourceDatabase {
 
     public void RegisterResourceImporter(ResourceImporter importer) => _importers.Add(importer);
     public bool UnregisterResourceImporter(ResourceImporter importer) => _importers.Remove(importer);
+
+    public void RegisterResourceDisposer(ResourceDisposer disposer) => _disposers.Add(disposer);
+    public bool UnregisterResourceDisposer(ResourceDisposer disposer) => _disposers.Remove(disposer);
 }

@@ -61,56 +61,38 @@ namespace RiptideRendering {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Cannot create GpuResource with dimension of &apos;Unknown&apos;..
+        /// </summary>
+        internal static string CannotCreateUnknownDimensionResource {
+            get {
+                return ResourceManager.GetString("CannotCreateUnknownDimensionResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot create GpuResource with Depth or Array Size of 0..
+        /// </summary>
+        internal static string CannotCreateZeroDepthOrArrayResource {
+            get {
+                return ResourceManager.GetString("CannotCreateZeroDepthOrArrayResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot create GpuResource with Width of 0 byte..
+        /// </summary>
+        internal static string CannotCreateZeroWidthResource {
+            get {
+                return ResourceManager.GetString("CannotCreateZeroWidthResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Cannot create rendering command because the command list has been closed..
         /// </summary>
         internal static string CommandListClosed {
             get {
                 return ResourceManager.GetString("CommandListClosed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot create texture with width of 0 or height of 0..
-        /// </summary>
-        internal static string FailedToCreate2DTexture_ZeroSize {
-            get {
-                return ResourceManager.GetString("FailedToCreate2DTexture_ZeroSize", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot create buffer with size of 0..
-        /// </summary>
-        internal static string FailedToCreateBuffer_ZeroSize {
-            get {
-                return ResourceManager.GetString("FailedToCreateBuffer_ZeroSize", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Depth Texture can only be created with a valid depth format..
-        /// </summary>
-        internal static string FailedToCreateDepthTex_MustBeDepthFormat {
-            get {
-                return ResourceManager.GetString("FailedToCreateDepthTex_MustBeDepthFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot create texture with undefined graphics format..
-        /// </summary>
-        internal static string FailedToCreateTexture_UndefinedFormat {
-            get {
-                return ResourceManager.GetString("FailedToCreateTexture_UndefinedFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Cannot create {0} because format {1} is unsupported..
-        /// </summary>
-        internal static string FailedToCreateTexture_UnsupportedFormat {
-            get {
-                return ResourceManager.GetString("FailedToCreateTexture_UnsupportedFormat", resourceCulture);
             }
         }
         
@@ -129,6 +111,15 @@ namespace RiptideRendering {
         internal static string InvalidPlatformObjectArgument {
             get {
                 return ResourceManager.GetString("InvalidPlatformObjectArgument", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cannot create GpuResource with an undefined dimension..
+        /// </summary>
+        internal static string UndefinedDimensionResource {
+            get {
+                return ResourceManager.GetString("UndefinedDimensionResource", resourceCulture);
             }
         }
     }

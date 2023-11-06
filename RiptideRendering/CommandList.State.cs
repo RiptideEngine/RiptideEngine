@@ -1,33 +1,28 @@
 ﻿namespace RiptideRendering;
 
-unsafe partial class CommandList {
-    public abstract void SetIndexBuffer(NativeBufferHandle buffer, IndexFormat format, uint offset);
+public struct ConstantBufferBinding {
+    public uint TableIndex;
+    public uint ResourceOffset;
 
-    public abstract void SetPipelineState(PipelineState pipelineState);
-
-    public abstract void SetGraphicsBindingSchematic(GraphicalShader shader);
-
-    public abstract void SetGraphicsDynamicConstantBuffer(ReadOnlySpan<char> name, ReadOnlySpan<byte> data);
-    public abstract void SetGraphicsReadonlyBuffer(ReadOnlySpan<char> name, NativeBufferHandle buffer, uint structuredSize, GraphicsFormat typedBufferFormat);
-    public abstract void SetGraphicsReadonlyTexture(ReadOnlySpan<char> name, TextureViewHandle viewHandle);
-
-    //public abstract void SetComputeBindingSchematic(ComputeShader shader);
-    //public abstract void SetComputeDynamicConstantBuffer(ReadOnlySpan<char> name, ReadOnlySpan<byte> data);
-    //public abstract void SetComputeReadWriteBuffer(ReadOnlySpan<char> name, NativeBufferHandle buffer, uint offset);
+    public NativeResourceHandle Resource;
+    public uint Offset;
 }
 
-public static unsafe class CommandListExtensions {
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void SetGraphicsDynamicConstantBuffer<T>(this CommandList list, ReadOnlySpan<char> name, in T data) where T : unmanaged {
-        fixed (T* pData = &data) {
-            list.SetGraphicsDynamicConstantBuffer(name, new ReadOnlySpan<byte>(pData, sizeof(T)));
-        }
-    }
+public struct ReadonlyResourceBinding(uint tableIndex, uint resourceOffset, NativeResourceView view) {
+    public uint TableIndex = tableIndex;
+    public uint ResourceOffset = resourceOffset;
 
-    //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-    //public static void SetComputeDynamicConstantBuffer<T>(this CommandList list, ReadOnlySpan<char> name, in T data) where T : unmanaged {
-    //    fixed (T* pData = &data) {
-    //        list.SetComputeDynamicConstantBuffer(name, new ReadOnlySpan<byte>(pData, sizeof(T)));
-    //    }
-    //}
+    public NativeResourceView View = view;
+}
+
+public struct UnorderedAccessResourceBinding {
+    public uint TableIndex;
+    public uint ResourceOffset;
+
+    public NativeResourceView View;
+}
+
+unsafe partial class CommandList {
+    public abstract void SetIndexBuffer(NativeResourceHandle buffer, IndexFormat format, uint offset);
+    public abstract void SetGraphicsPipeline(PipelineState shader, ResourceSignature pipelineResource, ReadOnlySpan<ConstantBufferBinding> constantBuffers, ReadOnlySpan<ReadonlyResourceBinding> readonlyResources, ReadOnlySpan<UnorderedAccessResourceBinding> unorderedAccesses);
 }

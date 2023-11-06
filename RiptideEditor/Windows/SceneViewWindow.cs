@@ -6,19 +6,18 @@ public sealed unsafe class SceneViewWindow : EditorWindow {
     private readonly ISceneGraphService _sceneService;
     private readonly IInputService _inputService;
 
-    private RenderTarget _gameRenderTarget = null!;
-    private DepthTexture _gameDepthTexture = null!;
+    private RenderTarget _gameOutput = null!;
 
     private Vector2 _lastContentSize = default;
 
     private ulong _resourceRecreationFrame = 0;
 
-    private RenderTarget _pickingIDBuffer = null!;
-    private DepthTexture _pickingDepthBuffer = null!;
+    private RenderTarget _pickingRenderTarget = null!;
+
     private GraphicalShader _pickingShader;
     private PipelineState _pickingPSO;
 
-    private ReadbackBuffer _pickingReadback = null!;
+    //private ReadbackBuffer _pickingReadback = null!;
 
     public SceneViewWindow() {
         _sceneService = EditorApplication.Services.GetRequiredService<ISceneGraphService>();
@@ -42,18 +41,18 @@ public sealed unsafe class SceneViewWindow : EditorWindow {
             DepthStencil = new() {
                 EnableDepth = true,
                 EnableStencil = true,
-                DepthFunction = ComparisonFunction.Less,
+                DepthComparison = ComparisonOperator.Less,
                 BackfaceOperation = new() {
-                    DepthFailOp = StencilOperation.Decr,
+                    DepthFailOp = StencilOperation.Decrease,
                     FailOp = StencilOperation.Keep,
                     PassOp = StencilOperation.Keep,
-                    Function = ComparisonFunction.Always,
+                    CompareOp = ComparisonOperator.Always,
                 },
                 FrontFaceOperation = new() {
-                    DepthFailOp = StencilOperation.Incr,
+                    DepthFailOp = StencilOperation.Increase,
                     FailOp = StencilOperation.Keep,
                     PassOp = StencilOperation.Keep,
-                    Function = ComparisonFunction.Always,
+                    CompareOp = ComparisonOperator.Always,
                 },
             },
             Rasterization = new() {
@@ -67,9 +66,9 @@ public sealed unsafe class SceneViewWindow : EditorWindow {
             },
         });
 
-        _pickingReadback = EditorApplication.RenderingContext.Factory.CreateReadbackBuffer(new() {
-            Size = 4,
-        });
+        //_pickingReadback = EditorApplication.RenderingContext.Factory.CreateReadbackBuffer(new() {
+        //    Size = 4,
+        //});
     }
 
     public override bool Render() {
@@ -213,51 +212,18 @@ public sealed unsafe class SceneViewWindow : EditorWindow {
         return open;
     }
 
-    private void RecreateOutputResources(uint width, uint height) {
-        var factory = EditorApplication.RenderingContext.Factory;
-
-        _gameRenderTarget = factory.CreateRenderTarget(new() {
-            Width = width,
-            Height = height,
-            Format = GraphicsFormat.R8G8B8A8UNorm,
-            InitialStates = ResourceStates.ShaderResource,
-        });
-        _gameRenderTarget.Name = $"{GetType().Name}.{nameof(_gameRenderTarget)}";
-
-        _gameDepthTexture = factory.CreateDepthTexture(new() {
-            Width = width,
-            Height = height,
-            Format = GraphicsFormat.D24UNormS8UInt,
-            InitialStates = ResourceStates.DepthRead,
-        });
-        _gameDepthTexture.Name = $"{GetType().Name}.{nameof(_gameDepthTexture)}";
-
-        _pickingIDBuffer = factory.CreateRenderTarget(new() {
-            Width = width,
-            Height = height,
-            Format = GraphicsFormat.R32UInt,
-            InitialStates = ResourceStates.CopySource,
-        });
-        _pickingIDBuffer.Name = $"{GetType().Name}.{nameof(_pickingIDBuffer)}";
-
-        _pickingDepthBuffer = factory.CreateDepthTexture(new() {
-            Width = width,
-            Height = height,
-            Format = GraphicsFormat.D24UNormS8UInt,
-            InitialStates = ResourceStates.DepthRead,
-        });
-        _pickingDepthBuffer.Name = $"{GetType().Name}.{nameof(_pickingDepthBuffer)}";
+    private void ResizeOutputResources(uint width, uint height) {
+        _gameOutput = new(TextureDimension.Texture2D, width, (ushort)height, 1, GraphicsFormat.R8G8B8A8UNorm, GraphicsFormat.D24UNormS8UInt);
+        _pickingRenderTarget = new(TextureDimension.Texture2D, width, (ushort)height, 1, GraphicsFormat.R32UInt, GraphicsFormat.D24UNormS8UInt);
     }
 
     protected override void OnDispose(bool disposeManaged) {
-        _pickingIDBuffer?.DecrementReference();
+        _pickingRenderTarget?.DecrementReference();
         _pickingPSO?.DecrementReference();
         _pickingShader?.DecrementReference();
-        _pickingDepthBuffer?.DecrementReference();
-        _pickingReadback.DecrementReference();
+        // _pickingReadback.DecrementReference();
 
-        _gameRenderTarget?.DecrementReference();
-        _gameDepthTexture?.DecrementReference();
+        _gameOutput?.DecrementReference();
     }
 
     [MenuBarCallback(MenuBarSection.View, "Editor/Scene View")]

@@ -15,11 +15,12 @@ internal unsafe class Debugger : IDisposable {
 
             MessageID* denyIDs = stackalloc MessageID[] {
                 MessageID.ClearrendertargetviewMismatchingclearvalue,
+                MessageID.CleardepthstencilviewMismatchingclearvalue,
             };
 
             var filter = new D3D12InfoQueueFilter() {
                 DenyList = new() {
-                    NumIDs = 1,
+                    NumIDs = 2,
                     PIDList = denyIDs,
                 },
             };

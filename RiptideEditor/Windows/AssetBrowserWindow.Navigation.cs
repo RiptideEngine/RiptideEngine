@@ -8,6 +8,8 @@ unsafe partial class AssetBrowserWindow {
     private readonly Stack<string> _navigationUndo = new(), _navigationRedo = new();
 
     private void DoNavigationButtons() {
+        var texID = (nint)_smallIcons.UnderlyingView.NativeView.Handle;
+
         ImGui.PushID("NavigationButtons");
 
         ImGui.PushStyleColor(ImGuiCol.Button, 0x00000000);
@@ -15,7 +17,7 @@ unsafe partial class AssetBrowserWindow {
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0xFF4F4F4F);
 
         ImGui.BeginDisabled(_navigationUndo.Count == 0);
-        if (ImGui.ImageButton("##UndoNavigation", (nint)_smallIcons.ViewHandle.Handle, new Vector2(18, 18), Vector2.Zero, new Vector2(0.25f, 0.25f))) {
+        if (ImGui.ImageButton("##UndoNavigation", texID, new Vector2(18, 18), Vector2.Zero, new Vector2(0.25f, 0.25f))) {
             UndoNavigation();
         }
         ImGui.EndDisabled();
@@ -23,7 +25,7 @@ unsafe partial class AssetBrowserWindow {
         ImGui.SameLine(0, 8);
 
         ImGui.BeginDisabled(_navigationRedo.Count == 0);
-        if (ImGui.ImageButton("##RedoNavigation", (nint)_smallIcons.ViewHandle.Handle, new Vector2(18, 18), new(0.25f, 0), new Vector2(0f, 0.25f))) {
+        if (ImGui.ImageButton("##RedoNavigation", texID, new Vector2(18, 18), new(0.25f, 0), new Vector2(0f, 0.25f))) {
             RedoNavigation();
         }
         ImGui.EndDisabled();
@@ -31,7 +33,7 @@ unsafe partial class AssetBrowserWindow {
         ImGui.SameLine(0, 8);
 
         ImGui.BeginDisabled(_browsingPath.Length == 0);
-        if (ImGui.ImageButton("##Backward", (nint)_smallIcons.ViewHandle.Handle, new Vector2(18, 18), new Vector2(0.25f, 0f), new Vector2(0.5f, 0.25f))) {
+        if (ImGui.ImageButton("##Backward", texID, new Vector2(18, 18), new Vector2(0.25f, 0f), new Vector2(0.5f, 0.25f))) {
             NavigateUpward();
         }
         ImGui.EndDisabled();
@@ -146,7 +148,7 @@ unsafe partial class AssetBrowserWindow {
             ImGui.PushStyleColor(ImGuiCol.Button, 0);
 
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, padding);
-            bool btn = ImGui.ImageButton("##Separator", (nint)_smallIcons.ViewHandle.Handle, BreadcrumbSeparatorImageSize, new Vector2(0.5f, 0), new Vector2(0.75f, 0.25f));
+            bool btn = ImGui.ImageButton("##Separator", (nint)_smallIcons.UnderlyingView.NativeView.Handle, BreadcrumbSeparatorImageSize, new Vector2(0.5f, 0), new Vector2(0.75f, 0.25f));
             ImGui.PopStyleVar();
 
             ImGui.PopStyleColor();

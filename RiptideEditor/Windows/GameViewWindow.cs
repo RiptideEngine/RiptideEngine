@@ -1,8 +1,7 @@
 ﻿namespace RiptideEditor.Windows;
 
 internal sealed unsafe class GameViewWindow : EditorWindow {
-    private RenderTarget _gameRenderTexture = null!;
-    private DepthTexture _gameDepthTexture = null!;
+    private RenderTarget _gameOutput = null!;
 
     public GameViewWindow() { }
 
@@ -23,8 +22,7 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
             int textureSizeX = (int)textureSize.X, textureSizeY = (int)textureSize.Y;
 
             if (textureSizeX <= 0 || textureSizeY <= 0) {
-                _gameRenderTexture?.DecrementReference();
-                _gameDepthTexture?.DecrementReference();
+                _gameOutput?.DecrementReference();
             } else {
                 var textureCenter = ImGui.GetWindowPos() + ImGui.GetWindowContentRegionMin() + containerSize / 2;
 
@@ -34,34 +32,21 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
                 CommandList cmdList;
 
                 if ((textureSize - GameRuntimeContext.WindowService.Size).LengthSquared() >= 0.001f) {
-                    _gameRenderTexture?.DecrementReference();
-                    _gameDepthTexture?.DecrementReference();
+                    _gameOutput?.DecrementReference();
 
                     uint textureWidth = (uint)textureSize.X, textureHeight = (uint)textureSize.Y;
 
-                    _gameRenderTexture = factory.CreateRenderTarget(new() {
-                        Width = textureWidth,
-                        Height = textureHeight,
-                        Format = GraphicsFormat.R8G8B8A8UNorm,
-                        InitialStates = ResourceStates.RenderTarget,
-                    });
-                    _gameDepthTexture = factory.CreateDepthTexture(new() {
-                        Width = textureWidth,
-                        Height = textureHeight,
-                        Format = GraphicsFormat.D24UNormS8UInt,
-                        InitialStates = ResourceStates.DepthWrite,
-                    });
-
-                    _gameRenderTexture.Name = "GameViewWindow._gameRenderTexture";
-                    _gameDepthTexture.Name = "GameViewWindow._gameDepthTexture";
+                    _gameOutput = new(TextureDimension.Texture2D, (uint)textureSize.X, (ushort)textureSize.Y, 1, GraphicsFormat.R8G8B8A8UNorm, GraphicsFormat.D24UNormS8UInt) {
+                        Name = "GameViewWindow._gameRenderTexture"
+                    };
 
                     GameRuntimeContext.WindowService.Size = textureSize;
                 } else {
                     cmdList = factory.CreateCommandList();
 
                     cmdList.TranslateResourceStates([
-                        new(_gameRenderTexture, ResourceStates.ShaderResource, ResourceStates.RenderTarget),
-                        new(_gameDepthTexture, ResourceStates.DepthRead, ResourceStates.DepthWrite),
+                        new(_gameOutput.UnderlyingTexture, ResourceStates.ShaderResource, ResourceStates.RenderTarget),
+                        new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthRead, ResourceStates.DepthWrite),
                     ]);
 
                     cmdList.Close();
@@ -70,16 +55,15 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
                 }
 
                 Graphics.RenderingPipeline.ExecuteRenderingOperation(new() {
-                    OutputCameras = EditorScene.EnumerateEditorScenes().SelectMany(x => x.EnumerateRootEntities()).SelectMany(x => IterateOperation.IterateDownward(x).Prepend(x)).Select(x => x.GetComponent<Camera>()).Where(x => x != null).ToArray()!,
-                    OutputRenderTarget = _gameRenderTexture,
-                    OutputDepthTexture = _gameDepthTexture,
+                    OutputCameras = EditorScene.EnumerateScenes().SelectMany(x => x.EnumerateRootEntities()).SelectMany(x => IterateOperation.IterateDownward(x).Prepend(x)).Select(x => x.GetComponent<Camera>()).Where(x => x != null).ToArray()!,
+                    OutputTarget = _gameOutput,
                 });
 
                 cmdList = factory.CreateCommandList();
 
                 cmdList.TranslateResourceStates([
-                    new(_gameRenderTexture, ResourceStates.RenderTarget, ResourceStates.ShaderResource),
-                    new(_gameDepthTexture, ResourceStates.DepthWrite, ResourceStates.DepthRead),
+                    new(_gameOutput.UnderlyingTexture, ResourceStates.RenderTarget, ResourceStates.ShaderResource),
+                    new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthWrite, ResourceStates.DepthRead),
                 ]);
 
                 cmdList.Close();
@@ -89,7 +73,7 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
                 Graphics.FlushCommandListExecutionBatch();
 
                 ImGui.SetCursorPos(ImGui.GetCursorPos() + (containerSize - textureSize) / 2);
-                ImGui.Image((nint)_gameRenderTexture.ViewHandle.Handle, textureSize);
+                ImGui.Image((nint)_gameOutput.UnderlyingTexture.NativeResource.Handle, textureSize);
             }
 
             ImGui.End();
@@ -107,8 +91,7 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
     }
 
     protected override void OnDispose(bool disposeManaged) {
-        _gameRenderTexture?.DecrementReference();
-        _gameDepthTexture?.DecrementReference();
+        _gameOutput?.DecrementReference();
     }
 
     [MenuBarCallback(MenuBarSection.View, "Editor/Game View")]

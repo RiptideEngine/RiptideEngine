@@ -162,7 +162,7 @@ unsafe partial class AssetBrowserWindow {
                 Vector2 uvMin = new(0.0625f, 0f), uvMax = new(0.125f, 1f);
 
                 ImGui.SetCursorPos(ImGui.GetCursorPos() + ImGui.GetStyle().FramePadding);
-                ImGui.Image((nint)_assetIcons.ViewHandle.Handle, new Vector2(IconSize), uvMin, uvMax);
+                ImGui.Image((nint)_assetIcons.UnderlyingView.NativeView.Handle, new Vector2(IconSize), uvMin, uvMax);
 
                 ImGui.PushStyleColor(ImGuiCol.FrameBg, 0);
                 ImGui.PushStyleColor(ImGuiCol.Border, 0xFF5F5F5F);
@@ -290,7 +290,7 @@ unsafe partial class AssetBrowserWindow {
 
         ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
 
-        if (ImGui.ImageButton("##IconButton", (nint)_assetIcons.ViewHandle.Handle, new Vector2(IconSize), uvMin, uvMax)) {
+        if (ImGui.ImageButton("##IconButton", (nint)_assetIcons.UnderlyingView.NativeView.Handle, new Vector2(IconSize), uvMin, uvMax)) {
             if (ImGui.GetIO().KeyCtrl) {
                 if (!Selections.Remove(rid)) {
                     Selections.Add(rid);
@@ -311,7 +311,7 @@ unsafe partial class AssetBrowserWindow {
 
         ImGui.PushStyleColor(ImGuiCol.Button, buttonColor);
 
-        if (ImGui.ImageButton("##IconButton", (nint)_assetIcons.ViewHandle.Handle, new Vector2(IconSize), uvMin, uvMax)) {
+        if (ImGui.ImageButton("##IconButton", (nint)_assetIcons.UnderlyingView.NativeView.Handle, new Vector2(IconSize), uvMin, uvMax)) {
             if (ImGui.GetIO().KeyCtrl) {
                 if (!Selections.Remove(rid)) {
                     Selections.Add(rid);

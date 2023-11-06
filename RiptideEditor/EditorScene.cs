@@ -41,12 +41,12 @@ public static class EditorScene {
         if (instance == null) return false;
 
         _scenePaths.Add(instance, assetPath);
-        _sgservice.EditorContext.AddScene(instance);
+        _sgservice.Context.AddScene(instance);
         return true;
     }
 
     public static bool CloseScene(Scene scene) {
-        if (_sgservice.EditorContext.RemoveScene(scene)) {
+        if (_sgservice.Context.RemoveScene(scene)) {
             bool remove = _scenePaths.Remove(scene);
             Debug.Assert(remove);
 
@@ -87,7 +87,7 @@ public static class EditorScene {
     }
 
     public static Scene CreateScene() {
-        var scene = _sgservice.EditorContext.CreateScene();
+        var scene = _sgservice.Context.CreateScene();
         _createdScenes.Add(scene);
 
         return scene;
@@ -100,19 +100,18 @@ public static class EditorScene {
     }
 
     public static bool MarkSceneDirty(Scene scene) {
-        if (!_sgservice.EditorContext.ContainsScene(scene)) return false;
+        if (!_sgservice.Context.ContainsScene(scene)) return false;
 
         _dirtyScenes.Add(scene);
         return true;
     }
 
     public static bool IsSceneDirty(Scene scene) => _dirtyScenes.Contains(scene);
-    public static IEnumerable<Scene> EnumerateEditorScenes() => _sgservice.EditorContext.EnumerateScenes();
-    public static IEnumerable<Scene> EnumeratePreviewScenes() => _sgservice.PreviewContext.EnumerateScenes();
+    public static IEnumerable<Scene> EnumerateScenes() => _sgservice.Context.EnumerateScenes();
     public static IEnumerable<Scene> EnumerateCreatedScenes() => _createdScenes;
 
     private static void DoSaveOperation() {
-        foreach (var scene in _sgservice.EditorContext.EnumerateScenes()) {
+        foreach (var scene in _sgservice.Context.EnumerateScenes()) {
             SaveScene(scene);
         }
 

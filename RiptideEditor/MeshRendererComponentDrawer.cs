@@ -38,9 +38,13 @@ internal sealed unsafe class MeshRendererComponentDrawer : BaseComponentDrawer {
                         if (meshGuid != default) {
                             var importResult = EditorResourceDatabase.LoadResource<Mesh>(meshGuid);
 
+                            Console.WriteLine("Result: " + importResult.Error);
+
                             if (!importResult.HasError) {
                                 Debug.Assert(importResult.Result is Mesh);
                                 renderer.Mesh = (Mesh)importResult.Result!;
+
+                                Console.WriteLine("Assign Mesh");
                             }
                         }
                     }

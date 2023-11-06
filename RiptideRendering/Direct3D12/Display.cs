@@ -5,7 +5,7 @@ internal sealed unsafe class Display : IDisposable {
 
     [InlineArray(BufferCount)]
     private struct SwapchainBufferArray {
-        private RenderTarget _element0;
+        private (D3D12GpuResource Resource, D3D12RenderTargetView View) _element0;
     }
 
     private readonly D3D12RenderingContext _context;
@@ -13,12 +13,9 @@ internal sealed unsafe class Display : IDisposable {
     private ComPtr<IDXGISwapChain3> pSwapchain;
     private SwapchainBufferArray _swapchainBuffers;
 
-    private DepthTexture _depthTexture = null!;
-
     private uint _currentSwapchainIndex;
     public uint CurrentSwapchainIndex => _currentSwapchainIndex;
-    public RenderTarget CurrentSwapchainRenderTarget => _swapchainBuffers[(int)_currentSwapchainIndex];
-    public DepthTexture DepthTexture => _depthTexture;
+    public (GpuResource Resource, RenderTargetView View) CurrentSwapchainRenderTarget => _swapchainBuffers[(int)_currentSwapchainIndex];
 
     public Display(D3D12RenderingContext context, IWindow outputWindow) {
         int hr;
@@ -27,7 +24,7 @@ internal sealed unsafe class Display : IDisposable {
         _context = context;
 
         try {
-            // Create RTV
+            // Create Swapchain
             SwapChainDesc1 scdesc = new() {
                 Width = wndSize.X,
                 Height = wndSize.Y,
@@ -55,23 +52,9 @@ internal sealed unsafe class Display : IDisposable {
             hr = pOutputSwapchain.QueryInterface(SilkMarshal.GuidPtrOf<IDXGISwapChain3>(), (void**)pOutputSwapchain3.GetAddressOf());
             Marshal.ThrowExceptionForHR(hr);
 
-            for (uint i = 0; i < BufferCount; i++) {
-                _swapchainBuffers[(int)i] = new D3D12RenderTarget(_context, (IDXGISwapChain*)pOutputSwapchain.Handle, i) {
-                    Name = "D3D12 Swapchain Resource " + i,
-                };
-            }
-
-            // Create Depth
-            _depthTexture = new D3D12DepthTexture(_context, new() {
-                Width = wndSize.X,
-                Height = wndSize.Y,
-                Format = GraphicsFormat.D24UNormS8UInt,
-                InitialStates = ResourceStates.DepthRead,
-            }) {
-                Name = "D3D12 Swapchain Depth Texture"
-            };
-
             pSwapchain.Handle = pOutputSwapchain3.Detach();
+
+            CreateRenderTargets();
         } catch {
             Dispose(true);
             throw;
@@ -81,8 +64,11 @@ internal sealed unsafe class Display : IDisposable {
     public void ResizeSwapchain(uint width, uint height) {
         // GPU must be idle.
 
-        foreach (var ptr in _swapchainBuffers) ptr.DecrementReference();
-        _depthTexture.DecrementReference(); _depthTexture = null!;
+        foreach ((var texture, var view) in _swapchainBuffers) {
+            texture?.DecrementReference();
+            view?.DecrementReference();
+        }
+        _swapchainBuffers = default;
 
         _context.DestroyDeferredResources();
 
@@ -92,20 +78,7 @@ internal sealed unsafe class Display : IDisposable {
             int hr = pSwapchain.ResizeBuffers(0, width, height, Format.FormatUnknown, 0);
             Marshal.ThrowExceptionForHR(hr);
 
-            for (uint i = 0; i < BufferCount; i++) {
-                _swapchainBuffers[(int)i] = new D3D12RenderTarget(_context, (IDXGISwapChain*)pSwapchain.Handle, i) {
-                    Name = "D3D12 Swapchain Resource " + i
-                };
-            }
-
-            _depthTexture = new D3D12DepthTexture(_context, new() {
-                Width = width,
-                Height = height,
-                Format = GraphicsFormat.D24UNormS8UInt,
-                InitialStates = ResourceStates.DepthRead,
-            }) {
-                Name = "D3D12 Swapchain Depth Texture"
-            };
+            CreateRenderTargets();
 
             _currentSwapchainIndex = pSwapchain.GetCurrentBackBufferIndex();
         } catch {
@@ -114,27 +87,47 @@ internal sealed unsafe class Display : IDisposable {
         }
     }
 
-    private void Dispose(bool disposing) {
-        if (pSwapchain.Handle == null) return;
-
-        if (disposing) { }
-
-        _depthTexture?.DecrementReference(); _depthTexture = null!;
-
-        for (int i = 0; i < BufferCount; i++) {
-            _swapchainBuffers[i]?.DecrementReference();
-        }
-        _swapchainBuffers = default;
-
-        pSwapchain.Dispose(); pSwapchain = default;
-    }
-
     public void Present() {
         int hr = pSwapchain.Present(1, 0);
         Marshal.ThrowExceptionForHR(hr);
 
         _currentSwapchainIndex = pSwapchain.GetCurrentBackBufferIndex();
     }
+
+    private void CreateRenderTargets() {
+        RenderTargetViewDescriptor desc = new() {
+            Dimension = RenderTargetViewDimension.Texture2D,
+            Format = GraphicsFormat.R8G8B8A8UNorm,
+            Texture2D = new() {
+                MipSlice = 0,
+                PlaneSlice = 0,
+            },
+        };
+
+        for (uint i = 0; i < BufferCount; i++) {
+            var texture = new D3D12GpuResource(_context, (IDXGISwapChain*)pSwapchain.Handle, i) {
+                Name = "D3D12 Swapchain Resource " + i,
+            };
+            var view = new D3D12RenderTargetView(_context, texture, desc);
+
+            _swapchainBuffers[(int)i] = (texture, view);
+        }
+    }
+
+    private void Dispose(bool disposing) {
+        if (pSwapchain.Handle == null) return;
+
+        if (disposing) { }
+
+        foreach ((var texture, var view) in _swapchainBuffers) {
+            texture?.DecrementReference();
+            view?.DecrementReference();
+        }
+        _swapchainBuffers = default;
+
+        pSwapchain.Dispose(); pSwapchain = default;
+    }
+
 
     ~Display() {
         Dispose(disposing: false);

@@ -23,33 +23,22 @@ public struct RasterizationConfig {
     public bool Conservative;
 }
 
-public enum ComparisonFunction {
-    Never = 1,
-    Less = 2,
-    Equal = 3,
-    LessEqual = 4,
-    Greater = 5,
-    NotEqual = 6,
-    GreaterEqual = 7,
-    Always = 8
-}
-
 public enum StencilOperation {
     Keep = 1,
     Zero = 2,
     Replace = 3,
-    IncrSat = 4,
-    DecrSat = 5,
+    IncreaseSaturated = 4,
+    DecreateSaturated = 5,
     Invert = 6,
-    Incr = 7,
-    Decr = 8
+    Increase = 7,
+    Decrease = 8
 }
 
 public struct StencilOperationConfig {
     public StencilOperation DepthFailOp;
     public StencilOperation FailOp;
     public StencilOperation PassOp;
-    public ComparisonFunction Function;
+    public ComparisonOperator CompareOp;
 }
 
 public struct RenderTargetFormatConfig {
@@ -63,27 +52,9 @@ public struct RenderTargetFormats {
 }
 
 public struct DepthStencilConfig {
-    public static DepthStencilConfig Default => new() {
-        EnableDepth = true,
-        EnableStencil = false,
-        DepthFunction = ComparisonFunction.Less,
-        BackfaceOperation = new() {
-            DepthFailOp = StencilOperation.Keep,
-            FailOp = StencilOperation.Keep,
-            PassOp = StencilOperation.Keep,
-            Function = ComparisonFunction.Always,
-        },
-        FrontFaceOperation = new() {
-            DepthFailOp = StencilOperation.Keep,
-            FailOp = StencilOperation.Keep,
-            PassOp = StencilOperation.Keep,
-            Function = ComparisonFunction.Always,
-        },
-    };
-
     public bool EnableDepth;
     public bool EnableStencil;
-    public ComparisonFunction DepthFunction;
+    public ComparisonOperator DepthComparison;
     public StencilOperationConfig BackfaceOperation;
     public StencilOperationConfig FrontFaceOperation;
 }
@@ -148,7 +119,7 @@ public struct RenderTargetBlends {
 }
 
 public struct BlendingConfig {
-    public static BlendingConfig Default {
+    public static BlendingConfig Opaque {
         get {
             BlendingConfig output = new() {
                 Independent = false,
@@ -209,4 +180,5 @@ public struct PipelineStateConfig {
     public required DepthStencilConfig DepthStencil;
     public required BlendingConfig Blending;
     public required RenderTargetFormatConfig RenderTargetFormats;
+    public required GraphicsFormat DepthFormat;
 }

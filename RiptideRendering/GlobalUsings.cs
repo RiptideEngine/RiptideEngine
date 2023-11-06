@@ -11,3 +11,6 @@ global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
 global using RiptideMathematics;
 global using Silk.NET.Direct3D.Compilers;
+
+global using D3D12ResourceFlags = Silk.NET.Direct3D12.ResourceFlags;
+global using D3D12ResourceDimension = Silk.NET.Direct3D12.ResourceDimension;

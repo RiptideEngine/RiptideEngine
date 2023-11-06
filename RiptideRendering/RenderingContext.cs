@@ -1,12 +1,10 @@
 ﻿using RiptideRendering.Direct3D12;
-using System.Runtime.Loader;
 
 namespace RiptideRendering;
 
-public readonly struct ContextOptions(RenderingAPI api, IWindow outputWindow, Type comparisonType) {
-    public readonly RenderingAPI Api = api;
-    public readonly IWindow OutputWindow = outputWindow;
-    public readonly Type ComparisonType = comparisonType;
+public struct ContextOptions(RenderingAPI api, IWindow outputWindow) {
+    public RenderingAPI Api = api;
+    public IWindow OutputWindow = outputWindow;
 }
 
 public static class RenderingContext {

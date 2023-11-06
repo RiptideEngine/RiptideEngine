@@ -1,6 +1,4 @@
-﻿using Silk.NET.Direct3D.Compilers;
-
-namespace RiptideRendering.Direct3D12;
+﻿namespace RiptideRendering.Direct3D12;
 
 internal static unsafe class D3D12Helper {
     public const uint DefaultShader4ComponentMapping = 0 | 1 << 3 | 2 << 6 | 3 << 9 | 1 << 12;
@@ -44,7 +42,7 @@ internal static unsafe class D3D12Helper {
         }
     }
 
-    public static bool TryFindTextureBindingLocation(ResourceBindLocation location, RootParameter* pParameters, uint numParameters, DescriptorRangeType descriptorRangeType, out uint parameterIndex, out uint descriptorOffset) {
+    public static bool TryFindTextureBindingLocation(uint register, uint space, RootParameter* pParameters, uint numParameters, DescriptorRangeType descriptorRangeType, out uint parameterIndex, out uint descriptorOffset) {
         for (uint i = 0; i < numParameters; i++) {
             ref readonly var param = ref pParameters[i];
 
@@ -56,12 +54,12 @@ internal static unsafe class D3D12Helper {
                 ref readonly var range = ref table.PDescriptorRanges[r];
 
                 if (range.RangeType != descriptorRangeType) continue;
-                if (range.RegisterSpace != location.Space) continue;
+                if (range.RegisterSpace != space) continue;
 
-                if (range.BaseShaderRegister > location.Register || location.Register >= range.BaseShaderRegister + range.NumDescriptors) continue;
+                if (range.BaseShaderRegister > register || register >= range.BaseShaderRegister + range.NumDescriptors) continue;
 
                 parameterIndex = i;
-                descriptorOffset = location.Register - range.BaseShaderRegister;
+                descriptorOffset = register - range.BaseShaderRegister;
 
                 return true;
             }

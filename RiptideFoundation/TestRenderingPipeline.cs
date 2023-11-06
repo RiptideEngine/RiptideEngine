@@ -9,20 +9,23 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
 
         var screenSize = Screen.Size;
 
-        cmdList.SetRenderTarget(info.OutputRenderTarget, info.OutputDepthTexture);
+        {
+            if (info.OutputTarget.UnderlyingDepthView is { } view) {
+                cmdList.ClearDepthTexture(view, DepthClearFlags.All, 1, 0);
+            }
+        }
         
         if (info.OutputCameras.Length > 0) {
-            cmdList.ClearRenderTarget(info.OutputRenderTarget, info.OutputCameras[0].ClearColor);
-            cmdList.ClearDepthTexture(info.OutputDepthTexture, DepthTextureClearFlags.All, 1, 0);
+            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, info.OutputCameras[0].ClearColor);
+            
+            cmdList.SetRenderTarget(info.OutputTarget.UnderlyingView, info.OutputTarget.UnderlyingDepthView is { } view ? view.NativeView : default);
 
-            foreach (var camera in info.OutputCameras) {
+            foreach (var camera in info.OutputCameras) {                
                 var vp = camera.Viewport;
                 cmdList.SetViewport(Rectangle.Create(screenSize * vp.GetPosition(), screenSize * vp.GetSize()));
 
                 var sr = camera.ScissorRect;
                 cmdList.SetScissorRect(Bound2D.Create(screenSize * sr.GetMinimum(), screenSize * sr.GetMaximum()).ToInt32());
-
-                var frustum = FrustumCulling.CalculateFrustumPlanes(camera.ViewMatrix * camera.ProjectionMatrix);
 
                 foreach (var scene in RuntimeFoundation.SceneGraphService.Context.EnumerateScenes()) {
                     foreach (var rootEntity in scene.EnumerateRootEntities()) {
@@ -31,8 +34,7 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
                 }
             }
         } else {
-            cmdList.ClearRenderTarget(info.OutputRenderTarget, Color.Black);
-            cmdList.ClearDepthTexture(info.OutputDepthTexture, DepthTextureClearFlags.All, 1, 0);
+            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, Color.Black);
         }
 
         cmdList.Close();
@@ -51,14 +53,14 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
     }
 
     public override void BindMesh(CommandList cmdList, Mesh mesh) {
-        int headerLength = "_RIPTIDE_VERTEXBUFFER_C".Length;
-        Span<char> name = stackalloc char[headerLength + 1];
-        "_RIPTIDE_VERTEXBUFFER_C".CopyTo(name);
+        //int headerLength = "_RIPTIDE_VERTEXBUFFER_C".Length;
+        //Span<char> name = stackalloc char[headerLength + 1];
+        //"_RIPTIDE_VERTEXBUFFER_C".CopyTo(name);
 
-        foreach ((var buffer, var descriptor) in mesh.EnumerateVertexBuffers()) {
-            name[headerLength] = (char)('0' + descriptor.Channel);
+        //foreach ((var buffer, var descriptor) in mesh.EnumerateVertexBuffers()) {
+        //    name[headerLength] = (char)('0' + descriptor.Channel);
 
-            cmdList.SetGraphicsReadonlyBuffer(name, buffer, descriptor.Stride, GraphicsFormat.Unknown);
-        }
+        //    cmdList.SetGraphicsReadonlyBuffer(name, buffer, descriptor.Stride, GraphicsFormat.Unknown);
+        //}
     }
 }

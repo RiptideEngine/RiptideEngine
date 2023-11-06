@@ -4,40 +4,36 @@
 /// Encapsulate as a list of graphics command that used for GPU rendering.
 /// </summary>
 public abstract partial class CommandList : RenderingObject {
-    public delegate void BufferWriter<T>(Span<byte> data, T state);
+    public delegate void ResourceWriter<T>(Span<byte> data, uint row, T state);
 
     public bool IsClosed { get; protected set; }
 
     // General
     public abstract void TranslateResourceStates(ReadOnlySpan<ResourceTransitionDescriptor> descs);
 
-    public abstract void ClearRenderTarget(RenderTargetHandle handle, Color color);
-    public abstract void ClearRenderTarget(RenderTargetHandle handle, Color color, ReadOnlySpan<Bound2D<int>> clearAreas);
+    public abstract void ClearRenderTarget(NativeRenderTargetView view, Color color);
+    public abstract void ClearRenderTarget(NativeRenderTargetView view, Color color, ReadOnlySpan<Bound2D<int>> clearAreas);
 
-    public abstract void ClearDepthTexture(DepthStencilHandle handle, DepthTextureClearFlags flags, float depth, byte stencil);
-    public abstract void ClearDepthTexture(DepthStencilHandle handle, DepthTextureClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas);
+    public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil);
+    public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas);
 
-    public abstract void SetStencilRef(uint stencilRef);
+    // Resource updating
+    public abstract void UpdateBufferRegion(NativeResourceHandle resource, uint offset, uint length, ReadOnlySpan<byte> source);
 
-    // Resource Updating
-    public abstract void UpdateBuffer(NativeBufferHandle resource, uint offset, ReadOnlySpan<byte> data);
-    public abstract void UpdateBuffer<T>(NativeBufferHandle resource, uint offset, uint length, BufferWriter<T> writer, T state);
-
-    public abstract void UpdateTexture(NativeTextureHandle resource, ReadOnlySpan<byte> data);
+    public abstract void UpdateResource<T>(NativeResourceHandle resource, ResourceWriter<T> writer, T state);
 
     // Resource copying
-    public abstract void CopyBuffer(NativeBufferHandle source, NativeBufferHandle destination);
-    public abstract void CopyTexture(NativeTextureHandle source, NativeTextureHandle destination);
-    public abstract void CopyBufferRegion(NativeBufferHandle source, ulong sourceOffset, NativeBufferHandle destination, ulong destinationOffset, ulong copyLength);
-    public abstract void CopyTextureRegion(NativeTextureHandle source, Bound3D<uint> sourceBox, NativeTextureHandle destination, uint destinationX, uint destinationY, uint destinationZ);
-    public abstract void ReadTexture(NativeTextureHandle source, Bound3D<uint> sourceBox, NativeReadbackBufferHandle destination);
+    public abstract void CopyBuffer(NativeResourceHandle source, NativeResourceHandle destination);
+    public abstract void CopyBufferRegion(NativeResourceHandle source, ulong sourceOffset, NativeResourceHandle destination, ulong destinationOffset, ulong numBytes);
+    public abstract void CopyTextureRegion(NativeResourceHandle source, Bound3D<uint> sourceBox, NativeResourceHandle destination, uint destinationX, uint destinationY, uint destinationZ);
 
     // Pipeline configurations
+    public abstract void SetStencilRef(uint stencilRef);
     public abstract void SetViewport(Rectangle<float> area);
     public abstract void SetScissorRect(Bound2D<int> area);
 
-    public abstract void SetRenderTarget(RenderTargetHandle renderTarget);
-    public abstract void SetRenderTarget(RenderTargetHandle renderTarget, DepthStencilHandle? depthStencil);
+    public abstract void SetRenderTarget(NativeRenderTargetView renderTarget);
+    public abstract void SetRenderTarget(NativeRenderTargetView renderTarget, NativeDepthStencilView depthStencil);
 
     // Drawings
     public abstract void Draw(uint vertexCount, uint instanceCount, uint startVertexLoc, uint startInstanceLoc);

@@ -33,7 +33,7 @@ public sealed unsafe class HierarchyWindow : EditorWindow {
 
             ImGui.BeginGroup();
 
-            foreach (var scene in EditorScene.EnumerateEditorScenes()) {
+            foreach (var scene in EditorScene.EnumerateScenes()) {
                 _enumeratingScene = scene;
 
                 ImGui.PushID(index++);

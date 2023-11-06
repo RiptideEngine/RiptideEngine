@@ -34,32 +34,24 @@ public sealed unsafe partial class AssetBrowserWindow : EditorWindow {
             bool op = image.DangerousTryGetSinglePixelMemory(out var memory);
             Debug.Assert(op, "Failed to get single pixel memory from Image<Rgba32>.");
 
-            _smallIcons = factory.CreateTexture2D(new() {
-                Width = (uint)image.Width,
-                Height = (uint)image.Height,
-                Format = GraphicsFormat.R8G8B8A8UNorm,
-            });
+            _smallIcons = new Texture2D((ushort)image.Width, (ushort)image.Height, GraphicsFormat.R8G8B8A8UNorm);
 
-            cmdList.UpdateTexture(_smallIcons, MemoryMarshal.AsBytes(memory.Span));
-            cmdList.TranslateResourceStates(stackalloc ResourceTransitionDescriptor[] {
-                new(_smallIcons, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
-            });
+            cmdList.UpdateResource(_smallIcons.UnderlyingTexture, MemoryMarshal.AsBytes(memory.Span));
+            cmdList.TranslateResourceStates([
+                new(_smallIcons.UnderlyingTexture, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
+            ]);
         }
 
         using (var image = Image.Load<Rgba32>(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "textures", "asset_icons.png"))) {
             bool op = image.DangerousTryGetSinglePixelMemory(out var memory);
             Debug.Assert(op, "Failed to get single pixel memory from Image<Rgba32>.");
 
-            _assetIcons = factory.CreateTexture2D(new() {
-                Width = (uint)image.Width,
-                Height = (uint)image.Height,
-                Format = GraphicsFormat.R8G8B8A8UNorm,
-            });
+            _assetIcons = new((ushort)image.Width, (ushort)image.Height, GraphicsFormat.R8G8B8A8UNorm);
 
-            cmdList.UpdateTexture(_assetIcons, MemoryMarshal.AsBytes(memory.Span));
-            cmdList.TranslateResourceStates(stackalloc ResourceTransitionDescriptor[] {
-                new(_assetIcons, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
-            });
+            cmdList.UpdateResource(_assetIcons.UnderlyingTexture, MemoryMarshal.AsBytes(memory.Span));
+            cmdList.TranslateResourceStates([
+                new(_assetIcons.UnderlyingTexture, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
+            ]);
         }
 
         cmdList.Close();
@@ -192,9 +184,9 @@ public sealed unsafe partial class AssetBrowserWindow : EditorWindow {
 
             if (string.IsNullOrEmpty(_searchingString)) {
                 ImGui.SetCursorPos(ImGui.GetCursorPos() + padding);
-                ImGui.Image((nint)_smallIcons.ViewHandle.Handle, new Vector2(height) - padding * 2, new Vector2(0.75f, 0), new Vector2(1, 0.25f));
+                ImGui.Image((nint)_smallIcons.UnderlyingView.NativeView.Handle, new Vector2(height) - padding * 2, new Vector2(0.75f, 0), new Vector2(1, 0.25f));
             } else {
-                bool btn = ImGui.ImageButton("##Separator", (nint)_smallIcons.ViewHandle.Handle, BreadcrumbSeparatorImageSize, new Vector2(0f, 0.25f), new Vector2(0.25f, 0.5f));
+                bool btn = ImGui.ImageButton("##Separator", (nint)_smallIcons.UnderlyingView.NativeView.Handle, BreadcrumbSeparatorImageSize, new Vector2(0f, 0.25f), new Vector2(0.25f, 0.5f));
 
                 if (btn) {
                     _searchingString = string.Empty;

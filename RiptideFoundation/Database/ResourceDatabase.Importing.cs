@@ -31,19 +31,21 @@ partial class ResourceDatabase {
 
             if (stream.ResourceStream == null) return ImportingResult.FromError(ImportingError.NullResourceStream);
 
-            context ??= new ImportingContext(this);
+            context ??= new ImportingContext();
 
-            importer.Initialize(stream, location);
+            var result = importer.RawImport(stream);
 
-            context.PushDependencyScope();
-
-            object? userData = null;
-            importer.GetDependencies(context, ref userData);
-
-            var result = importer.PartiallyLoadResource(userData);
-
-            if (result.HasError) return ImportingResult.FromError(result.Error);
+            if (result.HasError) return result;
             if (result.Result == null) return ImportingResult.FromError(ImportingError.EmptyResult);
+
+            var dto = result.Result;
+
+            result = importer.ImportPartially(dto);
+
+            var importObject = result.Result;
+
+            if (result.HasError) return result;
+            if (importObject == null) return ImportingResult.FromError(ImportingError.EmptyResult);
 
             ResourceCatalogue? cacheTable = null;
             foreach ((var type, var table) in _resourceCache) {
@@ -60,6 +62,9 @@ partial class ResourceDatabase {
 
             cacheTable.Add(new(protocol, location.ResourceGuid), result.Result!);
 
+            context.PushDependencyScope();
+            importer.GetDependencies(context, dto);
+
             var dependprofiles = context.PopDependencyScope();
             if (dependprofiles.Count != 0) {
                 var outputs = DictionaryPool<string, object?>.Shared.Get();
@@ -71,7 +76,7 @@ partial class ResourceDatabase {
                         outputs.Add(key, loadResult.Result);
                     }
 
-                    importer.PatchDependencies(result.Result!, outputs, userData);
+                    importer.PatchDependencies(dto, importObject, outputs);
                 } finally {
                     DictionaryPool<string, object?>.Shared.Return(outputs);
                 }

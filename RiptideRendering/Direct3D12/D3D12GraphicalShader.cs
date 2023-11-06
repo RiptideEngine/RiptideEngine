@@ -1,15 +1,9 @@
 ﻿using RiptideRendering.Shadering;
-using Silk.NET.Direct3D.Compilers;
 
 namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe partial class D3D12GraphicalShader : GraphicalShader {
-    private ID3D12RootSignature* pRootSignature;
-    private ID3D12VersionedRootSignatureDeserializer* pRootSignatureDeserializer;
-
-    public ID3D12RootSignature* RootSignature => pRootSignature;
-
-    public D3D12GraphicalShader(D3D12RenderingContext context, ReadOnlySpan<byte> rootSigBytecode, ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) {
+    public D3D12GraphicalShader(D3D12RenderingContext context, ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) {
         DxcCompilation.AssertInitialized();
 
         try {
@@ -34,16 +28,6 @@ internal sealed unsafe partial class D3D12GraphicalShader : GraphicalShader {
                 Marshal.ThrowExceptionForHR(hr);
             }
 
-            fixed (byte* pRootSig = rootSigBytecode) {
-                using ComPtr<ID3D12RootSignature> pOutputRootSig = default;
-                using ComPtr<ID3D12VersionedRootSignatureDeserializer> pOutputDeserializer = default;
-
-                context.RootSigStorage.Get(pRootSig, (nuint)rootSigBytecode.Length, pOutputRootSig.GetAddressOf(), pOutputDeserializer.GetAddressOf());
-
-                pRootSignature = pOutputRootSig.Detach();
-                pRootSignatureDeserializer = pOutputDeserializer.Detach();
-            }
-
             VertexShaderHandle = (nint)pVsBlob.Detach();
             PixelShaderHandle = (nint)pPsBlob.Detach();
             HullShaderHandle = (nint)pHsBlob.Detach();
@@ -58,16 +42,10 @@ internal sealed unsafe partial class D3D12GraphicalShader : GraphicalShader {
         _refcount = 1;
     }
 
-    public VersionedRootSignatureDesc* GetRootSignatureDesc() {
-        VersionedRootSignatureDesc* ret;
-        int hr = pRootSignatureDeserializer->GetRootSignatureDescAtVersion(D3DRootSignatureVersion.Version10, &ret);
-        Debug.Assert(hr >= 0);
-
-        return ret;
-    }
-
     protected override void Dispose() {
-        _reflector = null!;
+        ConstantBuffers = [];
+        ReadonlyResources = [];
+        ReadWriteResources = [];
 
         ((IDxcBlob*)VertexShaderHandle)->Release(); VertexShaderHandle = nint.Zero;
         ((IDxcBlob*)PixelShaderHandle)->Release(); PixelShaderHandle = nint.Zero;
@@ -76,8 +54,5 @@ internal sealed unsafe partial class D3D12GraphicalShader : GraphicalShader {
             ((IDxcBlob*)HullShaderHandle)->Release(); HullShaderHandle = nint.Zero;
             ((IDxcBlob*)DomainShaderHandle)->Release(); DomainShaderHandle = nint.Zero;
         }
-
-        pRootSignature = null;
-        pRootSignatureDeserializer = null;
     }
 }

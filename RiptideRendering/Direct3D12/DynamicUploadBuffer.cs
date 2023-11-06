@@ -40,8 +40,8 @@ internal unsafe sealed class UploadBufferStorage(D3D12RenderingContext context) 
                 VisibleNodeMask = 1,
             };
             ResourceDesc rdesc = new() {
-                Dimension = ResourceDimension.Buffer,
-                Flags = ResourceFlags.None,
+                Dimension = D3D12ResourceDimension.Buffer,
+                Flags = D3D12ResourceFlags.None,
                 Alignment = 0,
                 Width = minimumSize,
                 Height = 1,

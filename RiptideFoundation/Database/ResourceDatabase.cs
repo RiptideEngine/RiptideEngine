@@ -5,13 +5,20 @@ internal sealed partial class ResourceDatabase : IResourceDatabase {
     private readonly Dictionary<int, IdentifierCatalogue> _catalogues = [];
     private readonly Dictionary<int, ProtocolProvider> _protocolProviders = [];
     private readonly List<ResourceImporter> _importers = [];
+    private readonly List<ResourceDisposer> _disposers = [];
 
     public ResourceDatabase() { }
 
     private void Dispose(bool disposing) {
         if (!_disposed) {
             if (disposing) {
-                // TODO: dispose managed state (managed objects)
+                foreach ((_, var catalogue) in _resourceCache) {
+                    foreach (var resource in catalogue.EnumerateResources()) {
+                        foreach (var disposer in _disposers) {
+                            if (disposer.TryDispose(resource)) break;
+                        }
+                    }
+                }
             }
 
             _disposed = true;

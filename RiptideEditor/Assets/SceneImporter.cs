@@ -1,28 +1,44 @@
 ﻿namespace RiptideEditor.Assets;
 
 internal sealed class SceneImporter : ResourceImporter {
+    private struct SceneDTO {
+        public string Name;
+        public List<Entity> Entities;
+
+        public SceneDTO() {
+            Name = null!;
+            Entities = null!;
+        }
+    }
+
     public override bool CanImport(ImportingLocation location, Type resourceType) {
         return resourceType == typeof(Scene);
     }
 
-    public override void GetDependencies(ImportingContext context, ref object? userData) {
+    public override ImportingResult RawImport(ResourceStreams streams) {
         try {
-            var scene = JsonSerializer.Deserialize<Scene>(_streams.ResourceStream, EditorScene.SceneSerializationOptions);
-            userData = scene;
+            return ImportingResult.FromResult(JsonSerializer.Deserialize<SceneDTO>(streams.ResourceStream));
         } catch (JsonException) {
-            userData = ImportingError.CorruptedResourceData;
+            return ImportingResult.FromError(ImportingError.CorruptedResourceData);
+        } catch {
+            return ImportingResult.FromError(ImportingError.Unknown);
         }
-
-        // TODO: Read Template Entities.
-
     }
 
-    public override ImportingResult PartiallyLoadResource(object? userData) {
-        return userData switch {
-            ImportingError error when userData is ImportingError => ImportingResult.FromError(error),
-            Scene scene when userData is Scene => ImportingResult.FromResult(scene),
-            _ => ImportingResult.FromError(ImportingError.Unknown),
+    public override ImportingResult ImportPartially(object rawObject) {
+        Debug.Assert(rawObject is SceneDTO);
+
+        var dto = Unsafe.Unbox<SceneDTO>(rawObject);
+
+        Scene scene = new() {
+            Name = dto.Name,
         };
+        RootEntities(scene) = dto.Entities;
+
+        return ImportingResult.FromResult(scene);
+
+        [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_rootEntities")]
+        static extern ref List<Entity> RootEntities(Scene scene);
     }
 
     [AssetOpen(AssetFileExtensions.Scene, Order = 0)]

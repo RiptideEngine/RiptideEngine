@@ -7,8 +7,7 @@ public abstract class BaseRenderingContext : IDisposable {
     public abstract BaseFactory Factory { get; }
     public abstract BaseCapabilityChecker CapabilityChecker { get; }
 
-    public abstract RenderTarget SwapchainCurrentRenderTarget { get; }
-    public abstract DepthTexture SwapchainDepthTexture { get; }
+    public abstract (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget { get; }
 
     public void ResizeSwapchain(uint width, uint height) {
         ArgumentOutOfRangeException.ThrowIfZero(width, nameof(width));

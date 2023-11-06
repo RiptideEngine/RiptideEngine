@@ -1,5 +1,4 @@
 ﻿using RiptideRendering.Shadering;
-using Silk.NET.Direct3D.Compilers;
 
 namespace RiptideRendering.Direct3D12;
 
@@ -33,7 +32,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
         }
     }
 
-    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, in PipelineStateConfig config) {
+    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature pipelineResource, in PipelineStateConfig config) {
         ShaderBytecode vs, ps, hs, ds;
         RasterizerDesc rdesc;
         DepthStencilDesc dsdesc;
@@ -100,15 +99,18 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                 DepthWriteMask = DepthWriteMask.All,
                 StencilReadMask = D3D12.DefaultStencilReadMask,
                 StencilWriteMask = D3D12.DefaultStencilWriteMask,
-                DepthFunc = (ComparisonFunc)dsconfig.DepthFunction,
+                DepthFunc = D3D12Convert.TryConvert(dsconfig.DepthComparison, out var depthFunc) ? depthFunc : ComparisonFunc.Never,
                 BackFace = Unsafe.BitCast<StencilOperationConfig, DepthStencilopDesc>(dsconfig.BackfaceOperation),
                 FrontFace = Unsafe.BitCast<StencilOperationConfig, DepthStencilopDesc>(dsconfig.FrontFaceOperation),
             };
         }
 
+        bool cvt = D3D12Convert.TryConvert(config.DepthFormat, out var depthFormat);
+        Debug.Assert(cvt);
+
         GraphicsPipelineStateDesc desc = new() {
             VS = vs, PS = ps, HS = hs, DS = ds,
-            PRootSignature = shader.RootSignature,
+            PRootSignature = pipelineResource.RootSignature,
             SampleMask = uint.MaxValue,
             SampleDesc = new() {
                 Count = 1,
@@ -119,7 +121,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
             BlendState = bdesc,
             RTVFormats = rtFormats,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            DSVFormat = Format.FormatD24UnormS8Uint,
+            DSVFormat = depthFormat,
             NumRenderTargets = config.RenderTargetFormats.NumRenderTargets,
             NodeMask = 1,
         };
@@ -154,29 +156,6 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                 BlendOpAlpha = (BlendOp)config.AlphaOperator,
             };
         }
-    }
-
-    public D3D12PipelineState(D3D12RenderingContext context, D3D12ComputeShader shader) {
-        ShaderBytecode bytecode = D3D12Helper.CreateShaderBytecode((IDxcBlob*)shader.ShaderHandle);
-
-        ComputePipelineStateDesc desc = new() {
-            CS = bytecode,
-            NodeMask = 1,
-            PRootSignature = shader.RootSignature,
-        };
-
-        using ComPtr<ID3D12PipelineState> pOutput = default;
-        int hr = context.Device->CreateComputePipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pOutput.GetAddressOf());
-        Marshal.ThrowExceptionForHR(hr);
-
-        D3D12Helper.SetName(pOutput.Handle, UnnamedPipelineState);
-        pPipelineState.Handle = pOutput.Detach();
-
-        Shader = shader;
-        Shader.IncrementReference();
-
-        Type = PipelineStateType.Compute;
-        _refcount = 1;
     }
 
     protected override void Dispose() {

@@ -3,7 +3,7 @@
 partial class EditorApplication {
     public static IWindow MainWindow { get; private set; } = null!;
 
-    public static void CreateMainWindow() {
+    private static void CreateMainWindow() {
         if (MainWindow != null) throw new InvalidOperationException("Main window has already been created.");
 
         WindowOptions options = WindowOptions.Default with {

@@ -1,6 +1,28 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal static unsafe class D3D12Convert {
+    public static bool TryConvert(ComparisonOperator input, out ComparisonFunc output) {
+        if (!input.IsDefined()) {
+            output = default;
+            return false;
+        }
+
+        output = (ComparisonFunc)(input + 1);
+        return true;
+    }
+
+    public static bool TryConvert(ResourceRangeType input, out DescriptorRangeType output) {
+        switch (input) {
+            case ResourceRangeType.ConstantBuffer: output = DescriptorRangeType.Cbv; return true;
+            case ResourceRangeType.ReadonlyResource: output = DescriptorRangeType.Srv; return true;
+            case ResourceRangeType.UnorderedAccess: output = DescriptorRangeType.Uav; return true;
+            case ResourceRangeType.Sampler: output = DescriptorRangeType.Sampler; return true;
+        }
+
+        output = default;
+        return false;
+    }
+
     public static bool TryConvert(ShaderModel input, out D3DShaderModel output) {
         switch (input) {
             case ShaderModel.SM6_3: output = D3DShaderModel.ShaderModel63; return true;
@@ -221,5 +243,15 @@ internal static unsafe class D3D12Convert {
             (input.HasFlag(ResourceStates.DepthRead) ? D3D12ResourceStates.DepthRead : default) |
             (input.HasFlag(ResourceStates.Present) ? D3D12ResourceStates.Present : default)
             ;
+    }
+
+    public static bool TryConvert(TextureAddressingMode input, out TextureAddressMode output) {
+        switch (input) {
+            case TextureAddressingMode.Wrap: output = TextureAddressMode.Wrap; return true;
+            case TextureAddressingMode.Mirror: output = TextureAddressMode.Mirror; return true;
+            case TextureAddressingMode.Clamp: output = TextureAddressMode.Clamp; return true;
+            case TextureAddressingMode.Border: output = TextureAddressMode.Border; return true;
+            default: output = default; return false;
+        }
     }
 }

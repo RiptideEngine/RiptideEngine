@@ -109,13 +109,13 @@ partial class Entity {
         var localMatrix = MathUtils.CreateModel(_localPosition, _localRotation, _localScale);
 
         if (Parent != null) {
-            var l2w = Parent.LocalToWorldMatrix;
+            var parentMatrix = Parent.LocalToWorldMatrix;
 
-            _globalPosition = Vector3.Transform(_localPosition, l2w);
+            _globalPosition = Vector3.Transform(_localPosition, parentMatrix);
             _globalRotation = Quaternion.CreateFromRotationMatrix(_localToWorldMatrix) * _localRotation;
-            _globalScale = Vector3.TransformNormal(_localScale, l2w);
+            _globalScale = Vector3.TransformNormal(_localScale, parentMatrix);
 
-            _localToWorldMatrix = l2w * localMatrix;
+            _localToWorldMatrix = parentMatrix * localMatrix;
             Matrix4x4.Invert(_localToWorldMatrix, out _worldToLocalMatrix);
         } else {
             _globalPosition = _localPosition;
@@ -124,16 +124,6 @@ partial class Entity {
 
             _localToWorldMatrix = _worldToLocalMatrix = Matrix4x4.Identity;
         }
-
-        //if (Parent != null) {
-        //    _localToWorldMatrix = Parent.LocalToWorldMatrix * localMatrix;
-        //} else {
-        //    _localToWorldMatrix = localMatrix;
-        //}
-
-        //_globalPosition = Vector3.Transform(_localPosition, _localToWorldMatrix);
-        //_globalRotation = Quaternion.CreateFromRotationMatrix(_localToWorldMatrix) * _localRotation;
-        //_globalScale = Vector3.TransformNormal(_localScale, _localToWorldMatrix);
 
         _internalFlags &= ~EntityInternalFlags.TransformDirty;
 

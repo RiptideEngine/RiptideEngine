@@ -2,41 +2,26 @@
 
 public readonly record struct ResourceDependency(string Key, ImportingLocation Location, Type ResourceType);
 
-public sealed class ImportingContext(IResourceDatabase database) {
-    private readonly IResourceDatabase _database = database;
-    
-    private readonly Stack<DependencyScope> _dependencies = [];
-    private readonly HashSet<DependencyProfile> _dependencyDeduplications = [];
+public sealed class ImportingContext {
+    private readonly Stack<Dictionary<string, DependencyProfile>> _dependencies = [];
 
     public void PushDependencyScope() {
-        _dependencies.Push(new DependencyScope());
+        _dependencies.Push([]);
     }
 
     public void AddResourceDependency(ResourceDependency dependency) {
-        if (!_dependencyDeduplications.Add(dependency)) return;
+        if (!_dependencies.TryPeek(out var dict)) return;
 
-        var dependencies = _dependencies.Peek().Dependencies;
-        ref var refdep = ref CollectionsMarshal.GetValueRefOrAddDefault(dependencies, dependency.Key, out bool exists);
-        if (exists) return;
-
-        refdep = dependency;
+        dict[dependency.Key] = dependency;
     }
 
     public IDictionary<string, DependencyProfile> PopDependencyScope() {
-        var dependencies = _dependencies.Pop().Dependencies;
-        return dependencies;
+        return _dependencies.Pop();
     }
 
     public readonly record struct DependencyProfile(ImportingLocation Location, Type ResourceType) {
         public static implicit operator DependencyProfile(ResourceDependency dependency) {
             return new(dependency.Location, dependency.ResourceType);
-        }
-    }
-    private sealed class DependencyScope {
-        public readonly Dictionary<string, DependencyProfile> Dependencies;
-    
-        public DependencyScope() {
-            Dependencies = [];
         }
     }
 }

@@ -5,8 +5,12 @@ namespace RiptideEditor;
 internal unsafe class ImGuiController : IDisposable {
     private nint pContext;
 
-    private GpuBuffer _vertexBuffer = null!;
-    private GpuBuffer _indexBuffer = null!;
+    private GpuResource _vertexBuffer = null!;
+    private ResourceView _vertexBufferView = null!;
+    private GpuResource _indexBuffer = null!;
+
+    private GpuResource _constantBuffer = null!;
+
     private Texture2D _fontTexture = null!;
     private GraphicalShader _shader = null!;
     private PipelineState _pipelineState = null!;
@@ -52,19 +56,33 @@ internal unsafe class ImGuiController : IDisposable {
         var factory = _context.Factory;
 
         // Create mesh resources
-        {
-            _vertexBuffer = factory.CreateBuffer(new() {
-                Size = 10000 * (uint)sizeof(Vertex),
-                Flags = BufferFlags.None,
-            });
-            _vertexBuffer.Name = "ImGui Vertex Buffer";
+        _vertexBuffer = factory.CreateResource(new() {
+            Dimension = ResourceDimension.Buffer,
+            Width = 10000 * (uint)sizeof(Vertex),
+            DepthOrArraySize = 1,
+            Height = 1,
+        });
+        _vertexBuffer.Name = "ImGui Vertex Buffer";
 
-            _indexBuffer = factory.CreateBuffer(new() {
-                Size = 2500 * sizeof(ushort),
-                Flags = BufferFlags.None,
-            });
-            _indexBuffer.Name = "ImGui Index Buffer";
-        }
+        _vertexBufferView = factory.CreateResourceView(_vertexBuffer);
+        _vertexBufferView.Name = "ImGui Vertex Buffer View";
+
+        _indexBuffer = factory.CreateResource(new() {
+            Dimension = ResourceDimension.Buffer,
+            Width = 2500 * sizeof(ushort),
+            DepthOrArraySize = 1,
+            Height = 1,
+        });
+        _indexBuffer.Name = "ImGui Index Buffer";
+
+        // Create constant buffers
+        _constantBuffer = factory.CreateResource(new() {
+            Dimension = ResourceDimension.Buffer,
+            Width = 256 + 4,
+            DepthOrArraySize = 1,
+            Height = 1,
+        });
+        _constantBuffer.Name = "ImGui Constant Buffer";
 
         // Create font resources
         {
@@ -74,27 +92,23 @@ internal unsafe class ImGuiController : IDisposable {
 
             io.Fonts.GetTexDataAsRGBA32(out byte* pFontPixels, out int width, out int height);
 
-            _fontTexture = factory.CreateTexture2D(new() {
-                Width = (uint)width,
-                Height = (uint)height,
-                Format = GraphicsFormat.R8G8B8A8UNorm,
-            });
-            _fontTexture.Name = "ImGui Font Texture";
+            _fontTexture = new((ushort)width, (ushort)height, GraphicsFormat.R8G8B8A8UNorm) {
+                Name = "ImGui Font Texture"
+            };
             CommandList initializerList = factory.CreateCommandList();
 
-            io.Fonts.SetTexID((nint)_fontTexture.ViewHandle.Handle);
+            io.Fonts.SetTexID((nint)_fontTexture.UnderlyingView.NativeView.Handle);
 
-            ResourceTransitionDescriptor barrier = new(_fontTexture.ResourceHandle, ResourceStates.Common, ResourceStates.CopyDestination);
-            initializerList.TranslateResourceStates(MemoryMarshal.CreateReadOnlySpan(ref barrier, 1));
+            ResourceTransitionDescriptor barrier = new(_fontTexture.UnderlyingTexture, ResourceStates.Common, ResourceStates.CopyDestination);
+            initializerList.TranslateResourceStates(new(&barrier, 1));
 
-            initializerList.UpdateTexture(_fontTexture.ResourceHandle, new(pFontPixels, width * height * 4));
+            initializerList.UpdateResource(_fontTexture.UnderlyingTexture, new(pFontPixels, width * height * 4));
 
-            Span<ResourceTransitionDescriptor> barriers = stackalloc ResourceTransitionDescriptor[] {
-                new(_fontTexture.ResourceHandle, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
-                new(_vertexBuffer.ResourceHandle, ResourceStates.Common, ResourceStates.CopyDestination),
-                new(_indexBuffer.ResourceHandle, ResourceStates.Common, ResourceStates.CopyDestination),
-            };
-            initializerList.TranslateResourceStates(barriers);
+            initializerList.TranslateResourceStates([
+                new(_fontTexture.UnderlyingTexture, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
+                new(_vertexBuffer, ResourceStates.Common, ResourceStates.CopyDestination),
+                new(_indexBuffer, ResourceStates.Common, ResourceStates.CopyDestination),
+            ]);
 
             initializerList.Close();
             _context.ExecuteCommandList(initializerList);
@@ -179,18 +193,18 @@ internal unsafe class ImGuiController : IDisposable {
             var depth = new DepthStencilConfig() {
                 EnableDepth = false,
                 EnableStencil = false,
-                DepthFunction = ComparisonFunction.Always,
+                DepthComparison = ComparisonOperator.Always,
                 FrontFaceOperation = new() {
                     FailOp = StencilOperation.Keep,
                     DepthFailOp = StencilOperation.Keep,
                     PassOp = StencilOperation.Keep,
-                    Function = ComparisonFunction.Always,
+                    CompareOp = ComparisonOperator.Always,
                 },
                 BackfaceOperation = new() {
                     FailOp = StencilOperation.Keep,
                     DepthFailOp = StencilOperation.Keep,
                     PassOp = StencilOperation.Keep,
-                    Function = ComparisonFunction.Always,
+                    CompareOp = ComparisonOperator.Always,
                 },
             };
             var blend = BlendingConfig.CreateNonIndependent(new() {
@@ -206,6 +220,26 @@ internal unsafe class ImGuiController : IDisposable {
             });
 
             _shader = factory.CreateGraphicalShader(pVSBlob.AsSpan(), pPSBlob.AsSpan(), default, default, pRSBlob.AsSpan());
+
+            bool get = _shader.TryGetConstantBufferInfo("_Transformation", out var cbinfo);
+            Debug.Assert(get);
+
+            _transformationBindingLoc = cbinfo.BindingLocation;
+
+            get = _shader.TryGetConstantBufferInfo("_Constants", out cbinfo);
+            Debug.Assert(get);
+
+            _constantsBindingLoc = cbinfo.BindingLocation;
+
+            get = _shader.TryGetReadonlyResourceInfo("_VertexBuffer", out var rorinfo);
+            Debug.Assert(get);
+
+            _vertexBufferBindingLoc = rorinfo.BindingLocation;
+
+            get = _shader.TryGetReadonlyResourceInfo("_MainTexture", out rorinfo);
+            Debug.Assert(get);
+
+            _mainTextureBindingLoc = rorinfo.BindingLocation;
 
             RenderTargetFormats formats = default;
             formats[0] = GraphicsFormat.R8G8B8A8UNorm;
@@ -364,9 +398,13 @@ internal unsafe class ImGuiController : IDisposable {
         Matrix4x4 projection = Matrix4x4.CreateOrthographicOffCenter(0, io.DisplaySize.X, io.DisplaySize.Y, 0, 0, 1000);
 
         cmdList.SetPipelineState(_pipelineState);
-        cmdList.SetGraphicsBindingSchematic(_shader);
-        cmdList.SetGraphicsDynamicConstantBuffer("_Transformation", new(&projection, 64));
-        cmdList.SetGraphicsReadonlyBuffer("_VertexBuffer", _vertexBuffer, 0, GraphicsFormat.Unknown);
+
+        cmdList.SetPipelineResourceSets(_shader);
+
+        cmdList.UpdateBufferRegion(_constantBuffer, 0, 64, new(&projection, 64));
+
+        cmdList.SetGraphicsConstantBuffer(_transformationBindingLoc, _constantBuffer);
+        cmdList.SetGraphicsReadonlyResource(_vertexBufferBindingLoc, _vertexBufferView);
         cmdList.SetIndexBuffer(_indexBuffer, IndexFormat.UInt16, 0);
         cmdList.SetViewport(new(0, 0, io.DisplaySize.X, io.DisplaySize.Y));
 
@@ -379,19 +417,20 @@ internal unsafe class ImGuiController : IDisposable {
 
         if (data.CmdListsCount == 0) return;
 
-        if ((ulong)data.TotalVtxCount > _vertexBuffer.Descriptor.Size / (uint)sizeof(Vertex)) {
+        var bufferDesc = _vertexBuffer.Descriptor;
+        if ((ulong)data.TotalVtxCount > bufferDesc.Width / (uint)sizeof(Vertex)) {
             _vertexBuffer.DecrementReference();
-            _vertexBuffer = _context.Factory.CreateBuffer(new() {
-                Size = (ulong)data.TotalVtxCount * 2,
-                Flags = default,
+            _vertexBuffer = _context.Factory.CreateResource(bufferDesc with  {
+                Width = (ulong)data.TotalVtxCount * 2,
             });
             _vertexBuffer.Name = "ImGui Vertex Buffer";
         }
-        if ((ulong)data.TotalIdxCount > _indexBuffer.Descriptor.Size / sizeof(ushort)) {
+
+        bufferDesc = _indexBuffer.Descriptor;
+        if ((ulong)data.TotalIdxCount > bufferDesc.Width / sizeof(ushort)) {
             _indexBuffer.DecrementReference();
-            _indexBuffer = _context.Factory.CreateBuffer(new() {
-                Size = (ulong)data.TotalIdxCount * sizeof(ushort),
-                Flags = default,
+            _indexBuffer = _context.Factory.CreateResource(bufferDesc with {
+                Width = (ulong)data.TotalIdxCount * sizeof(ushort),
             });
             _indexBuffer.Name = "ImGui Index Buffer";
         }
@@ -401,17 +440,17 @@ internal unsafe class ImGuiController : IDisposable {
         for (int i = 0; i < data.CmdListsCount; i++) {
             var cl = data.CmdLists[i];
 
-            cmdList.UpdateBuffer(_vertexBuffer.ResourceHandle, vertexOffset * (uint)sizeof(Vertex), MemoryMarshal.AsBytes(new ReadOnlySpan<Vertex>((void*)cl.VtxBuffer.Data, cl.VtxBuffer.Size)));
-            cmdList.UpdateBuffer(_indexBuffer.ResourceHandle, indexOffset * sizeof(ushort), MemoryMarshal.AsBytes(new ReadOnlySpan<ushort>((void*)cl.IdxBuffer.Data, cl.IdxBuffer.Size)));
+            cmdList.UpdateResource(_vertexBuffer, MemoryMarshal.AsBytes(new ReadOnlySpan<Vertex>((void*)cl.VtxBuffer.Data, cl.VtxBuffer.Size)));
+            cmdList.UpdateResource(_indexBuffer, MemoryMarshal.AsBytes(new ReadOnlySpan<ushort>((void*)cl.IdxBuffer.Data, cl.IdxBuffer.Size)));
 
             vertexOffset += (uint)cl.VtxBuffer.Size;
             indexOffset += (uint)cl.IdxBuffer.Size;
         }
 
-        cmdList.TranslateResourceStates(stackalloc ResourceTransitionDescriptor[] {
-            new(_vertexBuffer.ResourceHandle, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
-            new(_indexBuffer.ResourceHandle, ResourceStates.CopyDestination, ResourceStates.IndexBuffer),
-        });
+        cmdList.TranslateResourceStates([
+            new(_vertexBuffer, ResourceStates.CopyDestination, ResourceStates.ShaderResource),
+            new(_indexBuffer, ResourceStates.CopyDestination, ResourceStates.IndexBuffer),
+        ]);
 
         SetupRenderState(data, cmdList);
 
@@ -436,12 +475,13 @@ internal unsafe class ImGuiController : IDisposable {
                     Vector2 clipMin = new(pcmd.ClipRect.X - clipOffset.X, pcmd.ClipRect.Y - clipOffset.Y);
                     Vector2 clipMax = new(pcmd.ClipRect.Z - clipOffset.X, pcmd.ClipRect.W - clipOffset.Y);
                     if (clipMax.X <= clipMin.X || clipMax.Y <= clipMin.Y) continue;
-
-                    cmdList.SetGraphicsReadonlyTexture("_MainTexture", Unsafe.BitCast<nint, TextureViewHandle>(pcmd.GetTexID()));
+                    
+                    cmdList.SetGraphicsReadonlyResource(_mainTextureBindingLoc, Unsafe.BitCast<nint, NativeResourceView>(pcmd.GetTexID()));
                     cmdList.SetScissorRect(new((int)clipMin.X, (int)clipMin.Y, (int)clipMax.X, (int)clipMax.Y));
 
                     uint vtxOffset = pcmd.VtxOffset + vertexOffset;
-                    cmdList.SetGraphicsDynamicConstantBuffer("_RootConstants", new(&vtxOffset, 4));
+
+                    cmdList.SetGraphicsConstantBuffer(_constantsBindingLoc, _constantBuffer, 256);
                     cmdList.DrawIndexed(pcmd.ElemCount, 1, pcmd.IdxOffset + indexOffset, 0);
                 }
             }
@@ -450,10 +490,10 @@ internal unsafe class ImGuiController : IDisposable {
             indexOffset += (uint)drawList.IdxBuffer.Size;
         }
 
-        cmdList.TranslateResourceStates(stackalloc ResourceTransitionDescriptor[] {
-            new(_vertexBuffer.ResourceHandle, ResourceStates.ShaderResource, ResourceStates.CopyDestination),
-            new(_indexBuffer.ResourceHandle, ResourceStates.IndexBuffer, ResourceStates.CopyDestination),
-        });
+        cmdList.TranslateResourceStates([
+            new(_vertexBuffer, ResourceStates.ShaderResource, ResourceStates.CopyDestination),
+            new(_indexBuffer, ResourceStates.IndexBuffer, ResourceStates.CopyDestination),
+        ]);
     }
 
     public void SetDisplaySize(Vector2 size) {

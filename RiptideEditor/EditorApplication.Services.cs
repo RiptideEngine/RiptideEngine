@@ -11,6 +11,7 @@ partial class EditorApplication {
     }
 
     private static void CreateGameRuntimeServices(RiptideServices services) {
+        services.CreateService<IAssimpLibrary, AssimpLibraryService>();
         services.CreateService<IComponentDatabase, ComponentDatabaseService>();
     }
 }

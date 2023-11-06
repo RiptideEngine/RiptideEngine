@@ -1,40 +1,40 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal static unsafe class D3D12Utils {
-    public static void GetIndicesOfRootDescriptors(RootParameter* pParameters, uint numParameters, D3D12ShaderReflector reflector, IList<uint> indices) {
-        for (uint i = 0; i < numParameters; i++) {
-            ref readonly var parameter = ref pParameters[i];
+    //public static void GetIndicesOfRootDescriptors(RootParameter* pParameters, uint numParameters, D3D12ShaderReflector reflector, IList<uint> indices) {
+    //    for (uint i = 0; i < numParameters; i++) {
+    //        ref readonly var parameter = ref pParameters[i];
 
-            switch (parameter.ParameterType) {
-                case RootParameterType.TypeCbv: {
-                    ref readonly var descriptor = ref parameter.Descriptor;
+    //        switch (parameter.ParameterType) {
+    //            case RootParameterType.TypeCbv: {
+    //                ref readonly var descriptor = ref parameter.Descriptor;
 
-                    if (reflector.HasConstantBuffer(new ResourceBindLocation(descriptor.ShaderRegister, descriptor.RegisterSpace))) {
-                        indices.Add(i);
-                    }
-                    break;
-                }
+    //                if (reflector.HasConstantBuffer(descriptor.ShaderRegister, descriptor.RegisterSpace)) {
+    //                    indices.Add(i);
+    //                }
+    //                break;
+    //            }
 
-                case RootParameterType.TypeSrv: {
-                    ref readonly var descriptor = ref parameter.Descriptor;
+    //            case RootParameterType.TypeSrv: {
+    //                ref readonly var descriptor = ref parameter.Descriptor;
 
-                    if (reflector.HasReadonlyResource(new ResourceBindLocation(descriptor.ShaderRegister, descriptor.RegisterSpace))) {
-                        indices.Add(i);
-                    }
-                    break;
-                }
+    //                if (reflector.HasReadonlyResource(descriptor.ShaderRegister, descriptor.RegisterSpace)) {
+    //                    indices.Add(i);
+    //                }
+    //                break;
+    //            }
 
-                case RootParameterType.TypeUav: {
-                    ref readonly var descriptor = ref parameter.Descriptor;
+    //            case RootParameterType.TypeUav: {
+    //                ref readonly var descriptor = ref parameter.Descriptor;
 
-                    if (reflector.HasReadWriteResource(new ResourceBindLocation(descriptor.ShaderRegister, descriptor.RegisterSpace))) {
-                        indices.Add(i);
-                    }
-                    break;
-                }
-            }
-        }
-    }
+    //                if (reflector.HasReadWriteResource(descriptor.ShaderRegister, descriptor.RegisterSpace)) {
+    //                    indices.Add(i);
+    //                }
+    //                break;
+    //            }
+    //        }
+    //    }
+    //}
 
     public static bool CheckIsRootConstant(RootParameter* pParameters, uint numParameters, uint register, uint space) {
         for (uint i = 0; i < numParameters; i++) {

@@ -23,10 +23,11 @@ public static partial class EditorResourceDatabase {
         _foundationDatabase.RegisterProtocolProvider("file", new FileProtocolProvider());
         _foundationDatabase.RegisterIdentifierCatalogue("file", _fileCatalogue);
         _foundationDatabase.RegisterResourceImporter(new SceneImporter());
+        _foundationDatabase.RegisterResourceImporter(new MeshImporter());
+
+        _foundationDatabase.RegisterResourceDisposer(new MeshDisposer());
 
         InitializeGuids();
-
-        Console.WriteLine(string.Join('\n', _fileCatalogue.EnumerateGuidToPath().Select(x => x.Key + ": " + x.Value)));
     }
 
     internal static void Shutdown() {

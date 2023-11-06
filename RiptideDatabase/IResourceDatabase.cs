@@ -13,4 +13,7 @@ public interface IResourceDatabase : IRiptideService {
 
     void RegisterResourceImporter(ResourceImporter importer);
     bool UnregisterResourceImporter(ResourceImporter importer);
+
+    void RegisterResourceDisposer(ResourceDisposer disposer);
+    bool UnregisterResourceDisposer(ResourceDisposer disposer);
 }

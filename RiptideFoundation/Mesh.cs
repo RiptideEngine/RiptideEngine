@@ -9,8 +9,8 @@ public readonly record struct VertexDescriptor(uint Stride, uint Channel);
 public readonly record struct SubmeshInformation(uint StartIndex, uint IndexCount, MeshBoundaryShape Shape);
 
 public sealed class Mesh : RiptideRcObject, IResourceAsset {
-    private GpuBuffer? _indexBuffer;
-    private GpuBuffer[] _vertexBuffers;
+    private GpuResource? _indexBuffer;
+    private GpuResource[] _vertexBuffers;
 
     private MeshInternalFlags _internalFlags;
     private VertexDescriptor[] _descriptors;
@@ -23,7 +23,7 @@ public sealed class Mesh : RiptideRcObject, IResourceAsset {
     public ReadOnlySpan<SubmeshInformation> Submeshes => _submeshes;
     public bool IsResourceAsset => _internalFlags.HasFlag(MeshInternalFlags.IsResource);
 
-    public GpuBuffer? IndexBuffer => _indexBuffer;
+    public GpuResource? IndexBuffer => _indexBuffer;
 
     public Mesh() {
         RuntimeFoundation.AssertInitialized();
@@ -47,14 +47,16 @@ public sealed class Mesh : RiptideRcObject, IResourceAsset {
         ValidateVertexDescriptors(descriptors);
 
         var factory = Graphics.RenderingContext.Factory;
-        GpuBuffer?[] outputBuffers = new GpuBuffer?[descriptors.Length];
+        GpuResource?[] outputBuffers = new GpuResource?[descriptors.Length];
 
         try {
             int index = 0;
             foreach (ref readonly var descriptor in descriptors) {
-                outputBuffers[index] = factory.CreateBuffer(new BufferDescriptor {
-                    Size = descriptor.Stride * vertexCount,
-                    Flags = BufferFlags.None,
+                outputBuffers[index] = factory.CreateResource(new() {
+                    Dimension = ResourceDimension.Buffer,
+                    Width = descriptor.Stride * vertexCount,
+                    Height = 1,
+                    DepthOrArraySize = 1,
                 });
 
                 index++;
@@ -83,9 +85,11 @@ public sealed class Mesh : RiptideRcObject, IResourceAsset {
             return;
         }
 
-        _indexBuffer = Graphics.RenderingContext.Factory.CreateBuffer(new BufferDescriptor {
-            Size = indexCount * (2U << (int)format),
-            Flags = BufferFlags.None,
+        _indexBuffer = Graphics.RenderingContext.Factory.CreateResource(new() {
+            Dimension = ResourceDimension.Buffer,
+            Width = indexCount * (2U << (int)format),
+            Height = 1,
+            DepthOrArraySize = 1,
         });
 
         IndexCount = indexCount;
@@ -95,7 +99,7 @@ public sealed class Mesh : RiptideRcObject, IResourceAsset {
         _submeshes = submeshes.ToArray();
     }
 
-    public bool TryGetVertexBuffer(uint channel, [NotNullWhen(true)] out GpuBuffer? output) {
+    public bool TryGetVertexBuffer(uint channel, [NotNullWhen(true)] out GpuResource? output) {
         int index = 0;
         foreach (ref readonly var descriptor in _descriptors.AsSpan()) {
             if (descriptor.Channel == channel) {
@@ -109,12 +113,12 @@ public sealed class Mesh : RiptideRcObject, IResourceAsset {
         output = null;
         return false;
     }
-    public GpuBuffer? GetVertexBuffer(uint channel) {
+    public GpuResource? GetVertexBuffer(uint channel) {
         TryGetVertexBuffer(channel, out var output);
         return output;
     }
 
-    public IEnumerable<(GpuBuffer Buffer, VertexDescriptor Descriptor)> EnumerateVertexBuffers() {
+    public IEnumerable<(GpuResource Buffer, VertexDescriptor Descriptor)> EnumerateVertexBuffers() {
         int idx = 0;
         foreach (var descriptor in _descriptors) {
             yield return (_vertexBuffers[idx], _descriptors[idx]);

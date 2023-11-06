@@ -7,7 +7,10 @@ public enum ShaderModel {
     //SM6_1,
     //SM6_2,
 
-    SM6_3 = 1,
+    SM6_0,
+    SM6_1,
+    SM6_2,
+    SM6_3,
     SM6_4,
     SM6_5,
     SM6_6,

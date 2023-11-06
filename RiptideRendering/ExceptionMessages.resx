@@ -117,28 +117,25 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="CannotCreateUnknownDimensionResource" xml:space="preserve">
+    <value>Cannot create GpuResource with dimension of 'Unknown'.</value>
+  </data>
+  <data name="CannotCreateZeroDepthOrArrayResource" xml:space="preserve">
+    <value>Cannot create GpuResource with Depth or Array Size of 0.</value>
+  </data>
+  <data name="CannotCreateZeroWidthResource" xml:space="preserve">
+    <value>Cannot create GpuResource with Width of 0 byte.</value>
+  </data>
   <data name="CommandListClosed" xml:space="preserve">
     <value>Cannot create rendering command because the command list has been closed.</value>
-  </data>
-  <data name="FailedToCreate2DTexture_ZeroSize" xml:space="preserve">
-    <value>Cannot create texture with width of 0 or height of 0.</value>
-  </data>
-  <data name="FailedToCreateBuffer_ZeroSize" xml:space="preserve">
-    <value>Cannot create buffer with size of 0.</value>
-  </data>
-  <data name="FailedToCreateDepthTex_MustBeDepthFormat" xml:space="preserve">
-    <value>Depth Texture can only be created with a valid depth format.</value>
-  </data>
-  <data name="FailedToCreateTexture_UndefinedFormat" xml:space="preserve">
-    <value>Cannot create texture with undefined graphics format.</value>
-  </data>
-  <data name="FailedToCreateTexture_UnsupportedFormat" xml:space="preserve">
-    <value>Cannot create {0} because format {1} is unsupported.</value>
   </data>
   <data name="InvalidPipelineStateBounded" xml:space="preserve">
     <value>Cannot set resource because pipeline state is unbounded or isn't a {0} pipeline state.</value>
   </data>
   <data name="InvalidPlatformObjectArgument" xml:space="preserve">
     <value>Provided {0} object is not a valid {1} object.</value>
+  </data>
+  <data name="UndefinedDimensionResource" xml:space="preserve">
+    <value>Cannot create GpuResource with an undefined dimension.</value>
   </data>
 </root>

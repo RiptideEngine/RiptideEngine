@@ -84,7 +84,7 @@ public static unsafe partial class EditorApplication {
 
         if (PlaymodeProcedure.IsInPlaymode) {
             if (!PlaymodeProcedure.IsPaused) {
-                foreach (var scene in EditorScene.EnumerateEditorScenes()) {
+                foreach (var scene in EditorScene.EnumerateScenes()) {
                     scene.Tick();
                 }
             }
@@ -117,24 +117,24 @@ public static unsafe partial class EditorApplication {
     internal static void Render(double deltaTime) {
         var cmdList = _renderingContext.Factory.CreateCommandList();
 
-        var ctxSwapchainRT = _renderingContext.SwapchainCurrentRenderTarget;
-        var ctxDepthTex = _renderingContext.SwapchainDepthTexture;
+        (var swapchainTexture, var swapchainRTV) = _renderingContext.SwapchainCurrentRenderTarget;
+        (var swapchainDepth, var swapchainDSV) = _renderingContext.Depth;
 
         // Render the GUI
         cmdList.TranslateResourceStates([
-            new(ctxSwapchainRT, ResourceStates.Present, ResourceStates.RenderTarget),
-            new(ctxDepthTex, ResourceStates.DepthRead, ResourceStates.DepthWrite),
+            new(swapchainTexture, ResourceStates.Present, ResourceStates.RenderTarget),
+            new(swapchainDepth, ResourceStates.DepthRead, ResourceStates.DepthWrite),
         ]);
 
-        cmdList.SetRenderTarget(ctxSwapchainRT, ctxDepthTex);
-        cmdList.ClearRenderTarget(ctxSwapchainRT, RiptideMathematics.Color.Black);
-        cmdList.ClearDepthTexture(ctxDepthTex, DepthTextureClearFlags.All, 1, 0);
+        cmdList.SetRenderTarget(swapchainRTV, swapchainDSV);
+        cmdList.ClearRenderTarget(swapchainRTV, RiptideMathematics.Color.Black);
+        cmdList.ClearDepthTexture(swapchainDSV, DepthClearFlags.All, 1, 0);
 
         _imguiController.Render(cmdList);
 
         cmdList.TranslateResourceStates([
-            new(ctxSwapchainRT, ResourceStates.RenderTarget, ResourceStates.Present),
-            new(ctxDepthTex, ResourceStates.DepthWrite, ResourceStates.DepthRead),
+            new(swapchainTexture, ResourceStates.RenderTarget, ResourceStates.Present),
+            new(swapchainDepth, ResourceStates.DepthWrite, ResourceStates.DepthRead),
         ]);
 
         cmdList.Close();
@@ -161,6 +161,7 @@ public static unsafe partial class EditorApplication {
         _imguiController?.Dispose();
 
         EditorResourceDatabase.Shutdown();
+        RuntimeFoundation.Shutdown();
 
         Services.RemoveAllServices();
     }

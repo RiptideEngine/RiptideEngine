@@ -19,4 +19,6 @@ internal sealed class ResourceCatalogue {
         _resourceToLocation.Add(resource, location);
         _locationToResource.Add(location, resource);
     }
+
+    public IEnumerable<object> EnumerateResources() => _resourceToLocation.Keys;
 }

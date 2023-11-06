@@ -1,6 +1,4 @@
 ﻿using RiptideRendering.Shadering;
-using Silk.NET.Core;
-using Silk.NET.Maths;
 
 namespace RiptideRendering.Direct3D12;
 
@@ -38,8 +36,7 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
     public override BaseFactory Factory => _factory;
     public override BaseCapabilityChecker CapabilityChecker => _capCheck;
 
-    public override RenderTarget SwapchainCurrentRenderTarget => Display.CurrentSwapchainRenderTarget;
-    public override DepthTexture SwapchainDepthTexture => Display.DepthTexture;
+    public override (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget => Display.CurrentSwapchainRenderTarget;
 
     public D3D12RenderingContext(ContextOptions options) {
         int hr;

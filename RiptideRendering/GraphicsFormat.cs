@@ -70,4 +70,6 @@ public static partial class GraphicsFormatExtensions {
                 stride = 0; return false;
         }
     }
+
+    public static bool IsDepthFormat(this GraphicsFormat format) => format is GraphicsFormat.D16UNorm or GraphicsFormat.D24UNormS8UInt or GraphicsFormat.D32Float or GraphicsFormat.D32FloatS8UInt;
 }

@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptideEngine.Core", "Ripti
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptideRendering", "RiptideRendering\RiptideRendering.csproj", "{C259D5D9-B345-480A-AA9E-8E956F44C992}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Rendering", "Rendering", "{557B4284-9E89-460C-AC26-90E823A08DFB}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptideEngine.Audio", "RiptideEngine.Audio\RiptideEngine.Audio.csproj", "{8BF4AC74-52A4-4916-861A-FD23BED13340}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptidePlayer", "RiptidePlayer\RiptidePlayer.csproj", "{E096AF68-B430-4FA5-A84B-6CE54654E13F}"
@@ -22,6 +20,10 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptideMathematics", "RiptideMathematics\RiptideMathematics.csproj", "{B1CB47FC-11AE-44FD-BA56-2571D47249DB}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RiptideDatabase", "RiptideDatabase\RiptideDatabase.csproj", "{61A7E5E5-9E03-487B-BCFD-554FCB7F8B8D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RenderingExperiment", "RenderingExperiment\RenderingExperiment.csproj", "{49D73A6E-9F1A-441A-A138-587965D1B981}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Laboratory", "Laboratory", "{C457B1CE-D308-441B-8148-BCFB764F0F87}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -65,12 +67,16 @@ Global
 		{61A7E5E5-9E03-487B-BCFD-554FCB7F8B8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{61A7E5E5-9E03-487B-BCFD-554FCB7F8B8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{61A7E5E5-9E03-487B-BCFD-554FCB7F8B8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49D73A6E-9F1A-441A-A138-587965D1B981}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49D73A6E-9F1A-441A-A138-587965D1B981}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49D73A6E-9F1A-441A-A138-587965D1B981}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49D73A6E-9F1A-441A-A138-587965D1B981}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{C259D5D9-B345-480A-AA9E-8E956F44C992} = {557B4284-9E89-460C-AC26-90E823A08DFB}
+		{49D73A6E-9F1A-441A-A138-587965D1B981} = {C457B1CE-D308-441B-8148-BCFB764F0F87}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C3FE0A5F-E092-40B5-B030-02652A84AB3A}

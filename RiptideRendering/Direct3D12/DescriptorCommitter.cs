@@ -65,8 +65,8 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
         _resourceRenderingHeap.RetireCurrentHeap();
     }
 
-    public void InitializeGraphicsBindingSchematic(RootParameter* rootParameters, uint numParameters, D3D12ShaderReflector reflector) {
-        D3D12Utils.CountTotalDescriptors(rootParameters, numParameters, out uint numResourceDescs, out uint numSamplerDescs);
+    public void InitializeGraphicDescriptors(ReadOnlySpan<RootParameter> rootParameters, Shader shader) {
+        D3D12Utils.CountTotalDescriptors((RootParameter*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(rootParameters)), (uint)rootParameters.Length, out uint numResourceDescs, out uint numSamplerDescs);
         _graphicsVersioning.ClearAllEntries();
 
         Debug.Assert(numSamplerDescs == 0, "Sampler binding is not supported yet.");
@@ -76,7 +76,7 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
             Debug.Assert(resourceStagingHandle.Ptr != nuint.MaxValue);
             var incrementSize = _context.Constants.ResourceViewDescIncrementSize;
 
-            for (uint p = 0; p < numParameters; p++) {
+            for (int p = 0; p < rootParameters.Length; p++) {
                 ref readonly var param = ref rootParameters[p];
                 if (param.ParameterType != RootParameterType.TypeDescriptorTable) continue;
 
@@ -84,15 +84,15 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
 
                 D3D12Utils.CountTotalDescriptors(table.PDescriptorRanges, table.NumDescriptorRanges, out numResourceDescs, out numSamplerDescs);
 
-                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, reflector, table.PDescriptorRanges, table.NumDescriptorRanges);
-                _graphicsVersioning.Committing.Add(new(p, numResourceDescs, resourceStagingHandle));
+                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, shader, table.PDescriptorRanges, table.NumDescriptorRanges);
+                _graphicsVersioning.Committing.Add(new((uint)p, numResourceDescs, resourceStagingHandle));
 
                 resourceStagingHandle.Offset(numResourceDescs, incrementSize);
             }
         }
     }
 
-    public void InitializeComputeBindingSchematic(RootParameter* rootParameters, uint numParameters, D3D12ShaderReflector reflector) {
+    public void InitializeComputeBindingSchematic(RootParameter* rootParameters, uint numParameters, Shader shader) {
         D3D12Utils.CountTotalDescriptors(rootParameters, numParameters, out uint numResourceDescs, out uint numSamplerDescs);
         _computeVersioning.ClearAllEntries();
 
@@ -111,7 +111,7 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
 
                 D3D12Utils.CountTotalDescriptors(table.PDescriptorRanges, table.NumDescriptorRanges, out numResourceDescs, out numSamplerDescs);
 
-                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, reflector, table.PDescriptorRanges, table.NumDescriptorRanges);
+                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, shader, table.PDescriptorRanges, table.NumDescriptorRanges);
                 _computeVersioning.Committing.Add(new(p, numResourceDescs, resourceStagingHandle));
 
                 resourceStagingHandle.Offset(numResourceDescs, incrementSize);
@@ -129,12 +129,12 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
 
         _resourceStagingAllocator = new(_context.StagingResourceDescHeapPool, numDescriptors);
         bool alloc = _resourceStagingAllocator.TryAllocate(numDescriptors, incrementSize, out handle);
-        Debug.Assert(alloc);
+        Debug.Assert(alloc, "Allocation from newly created heap pool failed.");
 
         return handle;
     }
 
-    private CpuDescriptorHandle GetResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, List<CommitEntry> committingEntries, List<CommitEntry> committedEntries) {
+    private bool TryGetResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, List<CommitEntry> committingEntries, List<CommitEntry> committedEntries, out CpuDescriptorHandle outputHandle) {
         uint incrementSize = _context.Constants.ResourceViewDescIncrementSize;
 
         foreach (ref readonly var committing in CollectionsMarshal.AsSpan(committingEntries)) {
@@ -142,7 +142,8 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
 
             Debug.Assert(descriptorOffset < committing.NumResourceDescriptors);
 
-            return Unsafe.BitCast<nuint, CpuDescriptorHandle>(committing.StartResourceHandle.Ptr + descriptorOffset * incrementSize);
+            outputHandle = new() { Ptr = committing.StartResourceHandle.Ptr + descriptorOffset * incrementSize };
+            return true;
         }
 
         foreach (ref readonly var committed in CollectionsMarshal.AsSpan(committedEntries)) {
@@ -155,14 +156,16 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
 
             committingEntries.Add(new(committed.ParameterIndex, committed.NumResourceDescriptors, handle));
 
-            return Unsafe.BitCast<nuint, CpuDescriptorHandle>(handle.Ptr + descriptorOffset * incrementSize);
+            outputHandle = new() { Ptr = handle.Ptr + descriptorOffset * incrementSize };
+            return true;
         }
 
-        throw new Exception($"Failed to get resource descriptor with root parameter index of {rootParameterIndex}, descriptor offset {descriptorOffset}.");
+        outputHandle = D3D12Helper.UnknownCpuHandle;
+        return false;
     }
 
-    public CpuDescriptorHandle GetGraphicsResourceDescriptor(uint rootParameterIndex, uint descriptorOffset) => GetResourceDescriptor(rootParameterIndex, descriptorOffset, _graphicsVersioning.Committing, _graphicsVersioning.Committed);
-    public CpuDescriptorHandle GetComputeResourceDescriptor(uint rootParameterIndex, uint descriptorOffset) => GetResourceDescriptor(rootParameterIndex, descriptorOffset, _computeVersioning.Committing, _computeVersioning.Committed);
+    public bool TryGetGraphicsResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, out CpuDescriptorHandle outputHandle) => TryGetResourceDescriptor(rootParameterIndex, descriptorOffset, _graphicsVersioning.Committing, _graphicsVersioning.Committed, out outputHandle);
+    public bool TryGetComputeResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, out CpuDescriptorHandle outputHandle) => TryGetResourceDescriptor(rootParameterIndex, descriptorOffset, _computeVersioning.Committing, _computeVersioning.Committed, out outputHandle);
 
     private void Commit(ID3D12GraphicsCommandList* pCommandList, CommitVersioning versioning, delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void> descriptorTableSetter) {
         versioning.GetNumCommittingDescriptors(out uint numCommittingResourceDescs, out uint numCommittingSamplerDescs);
@@ -201,7 +204,6 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
                         var offset = incrementSize * entry.NumResourceDescriptors;
                         renderingHandle = new(renderingHandle.Cpu.Ptr + offset, renderingHandle.Gpu.Ptr + offset);
                     }
-
                 }
 
                 versioning.MergeCommittingHistory();
@@ -219,7 +221,7 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
         Commit(pCommandList, _computeVersioning, (delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void>)pCommandList->LpVtbl[31]);
     }
 
-    private static void FillNullDescriptors(CpuDescriptorHandle startHandle, uint incrementSize, ID3D12Device* pDevice, D3D12ShaderReflector reflector, DescriptorRange* pRanges, uint numRanges) {
+    private static void FillNullDescriptors(CpuDescriptorHandle startHandle, uint incrementSize, ID3D12Device* pDevice, Shader shader, DescriptorRange* pRanges, uint numRanges) {
         nuint handle = startHandle.Ptr;
 
         for (uint r = 0; r < numRanges; r++) {
@@ -234,9 +236,7 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
                     break;
                 case DescriptorRangeType.Srv: {
                     for (uint d = 0; d < range.NumDescriptors; d++) {
-                        var location = new ResourceBindLocation(range.BaseShaderRegister + d, range.RegisterSpace);
-
-                        if (reflector.TryGetReadonlyResourceInfo(location, out var info)) {
+                        if (shader.TryGetReadonlyResourceInfo(range.BaseShaderRegister + d, range.RegisterSpace, out var info)) {
                             ShaderResourceViewDesc srvdesc = new() {
                                 Shader4ComponentMapping = D3D12Helper.DefaultShader4ComponentMapping,
                             };
@@ -255,6 +255,7 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
                                 case ResourceType.StructuredBuffer:
                                     srvdesc.ViewDimension = SrvDimension.Buffer;
                                     srvdesc.Format = Format.FormatUnknown;
+                                    srvdesc.Buffer.StructureByteStride = 4;     // Arbitrary value so that GPU doesn't crash due to invalid creation.
                                     break;
 
                                 case ResourceType.ByteAddressBuffer:
@@ -329,10 +330,9 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
                 }
                 case DescriptorRangeType.Uav: {
                     for (uint d = 0; d < range.NumDescriptors; d++) {
-                        var location = new ResourceBindLocation(range.BaseShaderRegister + d, range.RegisterSpace);
                         var createHandle = Unsafe.BitCast<nuint, CpuDescriptorHandle>(handle);
 
-                        if (reflector.TryGetReadWriteResourceInfo(location, out var info)) {
+                        if (shader.TryGetReadWriteResourceInfo(range.BaseShaderRegister + d, range.RegisterSpace, out var info)) {
                             UnorderedAccessViewDesc uavdesc = default;
 
                             switch (info.Type) {

@@ -7,61 +7,48 @@ internal sealed unsafe class D3D12Factory : BaseFactory {
         _context = context;
     }
 
-    public override PipelineState CreatePipelineState(GraphicalShader shader, in PipelineStateConfig config) {
+    public override PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature pipelineResource, in PipelineStateConfig config) {
         if (shader is not D3D12GraphicalShader d3d12shader) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GraphicalShader", "Direct3D12's GraphicalShader"), nameof(shader));
+        if (pipelineResource is not D3D12ResourceSignature d3d12pr) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "PipelineResource", "Direct3D12's PipelineResource"), nameof(pipelineResource));
 
-        return new D3D12PipelineState(_context, d3d12shader, config);
+        return new D3D12PipelineState(_context, d3d12shader, d3d12pr, config);
     }
 
-    public override PipelineState CreatePipelineState(ComputeShader shader) {
-        if (shader is not D3D12ComputeShader d3d12shader) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "ComputeShader", "Direct3D12's ComputeShader"));
-
-        return new D3D12PipelineState(_context, d3d12shader);
+    public override ResourceSignature CreateResourceSignature(ReadOnlySpan<ResourceTableDescriptor> resourceRanges, ReadOnlySpan<ImmutableSamplerDescriptor> immutableSamplers) {
+        return new D3D12ResourceSignature(_context, resourceRanges, immutableSamplers);
     }
 
-    public override GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode, ReadOnlySpan<byte> rootSignatureBytecode) {
-        if (rootSignatureBytecode.Length < 4) throw new ArgumentException("Direct3D12: A valid root signature bytecode is required.");
-
-        return new D3D12GraphicalShader(_context, rootSignatureBytecode, vsBytecode, psBytecode, hsBytecode, dsBytecode);
-    }
-
-    public override ComputeShader CreateComputeShader(ReadOnlySpan<byte> bytecode, ReadOnlySpan<byte> rootSignatureBytecode) {
-        return new D3D12ComputeShader(_context, bytecode, rootSignatureBytecode);
+    public override GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) {
+        return new D3D12GraphicalShader(_context, vsBytecode, psBytecode, hsBytecode, dsBytecode);
     }
 
     public override CommandList CreateCommandList() {
         return _context.CommandListPool.Request();
     }
 
-    protected override GpuBuffer CreateGpuBufferImpl(in BufferDescriptor descriptor) {
-        return new D3D12GpuBuffer(_context, descriptor);
+    protected override GpuResource CreateResourceImpl(in ResourceDescriptor descriptor, ResourceStates initialStates) {
+        return new D3D12GpuResource(_context, descriptor, initialStates);
     }
 
-    protected override RenderTarget CreateRenderTargetImpl(in RenderTargetDescriptor descriptor) {
-        if (!Unsafe.As<D3D12CapabilityChecker>(_context.CapabilityChecker).CheckFormatSupport(descriptor.Format, FormatSupport1.RenderTarget)) {
-            throw new PlatformNotSupportedException(string.Format(ExceptionMessages.FailedToCreateTexture_UnsupportedFormat, nameof(RenderTarget), descriptor.Format));
-        }
+    public override ResourceView CreateResourceView(GpuResource resource, ResourceViewDescriptor descriptor) {
+        if (resource is not D3D12GpuResource d3d12resource) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuResource", "Direct3D12's GpuResource"));
+        if (!descriptor.Format.IsDefined()) throw new ArgumentException("Failed to create ResourceView with undefined format type.", nameof(descriptor));
+        if (!descriptor.Dimension.IsDefined()) throw new ArgumentException("Failed to create ResourceView with undefined dimension.");
 
-        return new D3D12RenderTarget(_context, descriptor);
+        return new D3D12ResourceView(_context, d3d12resource, descriptor);
     }
 
-    protected override DepthTexture CreateDepthTextureImpl(in DepthTextureDescriptor descriptor) {
-        if (!Unsafe.As<D3D12CapabilityChecker>(_context.CapabilityChecker).CheckFormatSupport(descriptor.Format, FormatSupport1.DepthStencil)) {
-            throw new PlatformNotSupportedException(string.Format(ExceptionMessages.FailedToCreateTexture_UnsupportedFormat, nameof(DepthTexture), descriptor.Format));
-        }
+    public override RenderTargetView CreateRenderTargetView(GpuResource texture, RenderTargetViewDescriptor descriptor) {
+        if (texture is not D3D12GpuResource d3d12resource) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuTexture", "Direct3D12's GpuTexture"));
+        if (!((ID3D12Resource*)d3d12resource.NativeResource.Handle)->GetDesc().Flags.HasFlag(D3D12ResourceFlags.AllowRenderTarget)) throw new ArgumentException("Texture is not allowed to be used as render target.");
 
-        return new D3D12DepthTexture(_context, descriptor);
+        return new D3D12RenderTargetView(_context, d3d12resource, descriptor);
     }
 
-    protected override Texture2D CreateTexture2DImpl(in Texture2DDescriptor descriptor) {
-        if (!Unsafe.As<D3D12CapabilityChecker>(_context.CapabilityChecker).CheckFormatSupport(descriptor.Format, FormatSupport1.Texture2D)) {
-            throw new PlatformNotSupportedException(string.Format(ExceptionMessages.FailedToCreateTexture_UnsupportedFormat, nameof(Texture2D), descriptor.Format));
-        }
+    public override DepthStencilView CreateDepthStencilView(GpuResource texture, DepthStencilViewDescriptor descriptor) {
+        if (texture is not D3D12GpuResource d3d12resource) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuTexture", "Direct3D12's GpuTexture"));
+        if (!((ID3D12Resource*)d3d12resource.NativeResource.Handle)->GetDesc().Flags.HasFlag(D3D12ResourceFlags.AllowDepthStencil)) throw new ArgumentException("Texture is not allowed to be used as depth texture.");
 
-        return new D3D12Texture2D(_context, descriptor);
-    }
-
-    protected override ReadbackBuffer CreateReadbackBufferImpl(in ReadbackBufferDescriptor descriptor) {
-        return new D3D12ReadbackBuffer(_context, descriptor);
+        return new D3D12DepthStencilView(_context, d3d12resource, descriptor);
     }
 }

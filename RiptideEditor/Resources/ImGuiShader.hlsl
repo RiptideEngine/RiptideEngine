@@ -1,18 +1,16 @@
 ﻿#define ROOT_SIGNATURE \
     "RootFlags(DENY_HULL_SHADER_ROOT_ACCESS | DENY_DOMAIN_SHADER_ROOT_ACCESS | DENY_GEOMETRY_SHADER_ROOT_ACCESS)," \
     "CBV(b0, space = 0, visibility = SHADER_VISIBILITY_VERTEX)," \
+    "CBV(b1, space = 0, visibility = SHADER_VISIBILITY_VERTEX)," \
     "SRV(t0, space = 0, visibility = SHADER_VISIBILITY_VERTEX)," \
-    "RootConstants(b1, space = 0, visibility = SHADER_VISIBILITY_VERTEX, num32BitConstants = 1)," \
     "DescriptorTable(SRV(t1, space = 0), visibility = SHADER_VISIBILITY_PIXEL)," \
     "StaticSampler(s0, space = 0, visibility = SHADER_VISIBILITY_PIXEL, " \
-        "addressU = TEXTURE_ADDRESS_CLAMP," \
-        "addressV = TEXTURE_ADDRESS_CLAMP," \
-        "addressW = TEXTURE_ADDRESS_CLAMP," \
-        "filter = FILTER_MIN_MAG_MIP_LINEAR," \
-        "comparisonFunc = COMPARISON_ALWAYS," \
-        "borderColor = STATIC_BORDER_COLOR_TRANSPARENT_BLACK," \
-        "maxAnisotropy = 0," \
-        "minLOD = 0, maxLOD = 0" \
+        "addressU = TEXTURE_ADDRESS_CLAMP,"     \
+        "addressV = TEXTURE_ADDRESS_CLAMP,"     \
+        "addressW = TEXTURE_ADDRESS_CLAMP,"     \
+        "filter = FILTER_MIN_MAG_MIP_LINEAR,"   \
+        "comparisonFunc = COMPARISON_ALWAYS,"   \
+        "borderColor = STATIC_BORDER_COLOR_TRANSPARENT_BLACK" \
     "),"
 
 struct Vertex {
@@ -33,9 +31,9 @@ cbuffer _Transformation : register(b0, space0) {
     float4x4 _ProjectionMatrix;
 };
 
-cbuffer _RootConstants : register(b1, space0) {
+cbuffer _Constants : register(b1, space0) {
     uint _BaseVertexLocation;
-}
+};
 
 float4 UnpackColor(uint color) {
     return float4(color & 0xFF, (color & 0x0000FF00) >> 8, (color & 0x00FF0000) >> 16, color >> 24) / 255.0;
