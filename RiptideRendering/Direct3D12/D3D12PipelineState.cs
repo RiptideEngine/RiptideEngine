@@ -120,7 +120,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
             DepthStencilState = dsdesc,
             BlendState = bdesc,
             RTVFormats = rtFormats,
-            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            PrimitiveTopologyType = (PrimitiveTopologyType)config.PrimitiveTopology,
             DSVFormat = depthFormat,
             NumRenderTargets = config.RenderTargetFormats.NumRenderTargets,
             NodeMask = 1,

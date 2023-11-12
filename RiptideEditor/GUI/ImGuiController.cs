@@ -9,7 +9,7 @@ internal unsafe class ImGuiController : IDisposable {
     private ResourceView _vertexBufferView = null!;
     private GpuResource _indexBuffer = null!;
 
-    private GpuResource _constantBuffer = null!;
+    private ResourceSignature _resourceSignature = null!;
 
     private Texture2D _fontTexture = null!;
     private GraphicalShader _shader = null!;
@@ -18,8 +18,6 @@ internal unsafe class ImGuiController : IDisposable {
     private BaseRenderingContext _context;
 
     private Vector2 _displaySize;
-
-    public PipelineState TransparentState => _pipelineState;
 
     private readonly IInputService _input;
     private readonly TimeTracker _time;
@@ -64,7 +62,16 @@ internal unsafe class ImGuiController : IDisposable {
         });
         _vertexBuffer.Name = "ImGui Vertex Buffer";
 
-        _vertexBufferView = factory.CreateResourceView(_vertexBuffer);
+        _vertexBufferView = factory.CreateResourceView(_vertexBuffer, new() {
+            Dimension = ResourceViewDimension.Buffer,
+            Format = GraphicsFormat.Unknown,
+            Buffer = new() {
+                FirstElement = 0,
+                NumElements = 10000,
+                StructureSize = (uint)sizeof(Vertex),
+                IsRawBuffer = false,
+            },
+        });
         _vertexBufferView.Name = "ImGui Vertex Buffer View";
 
         _indexBuffer = factory.CreateResource(new() {
@@ -74,15 +81,6 @@ internal unsafe class ImGuiController : IDisposable {
             Height = 1,
         });
         _indexBuffer.Name = "ImGui Index Buffer";
-
-        // Create constant buffers
-        _constantBuffer = factory.CreateResource(new() {
-            Dimension = ResourceDimension.Buffer,
-            Width = 256 + 4,
-            DepthOrArraySize = 1,
-            Height = 1,
-        });
-        _constantBuffer.Name = "ImGui Constant Buffer";
 
         // Create font resources
         {
@@ -100,7 +98,9 @@ internal unsafe class ImGuiController : IDisposable {
             io.Fonts.SetTexID((nint)_fontTexture.UnderlyingView.NativeView.Handle);
 
             ResourceTransitionDescriptor barrier = new(_fontTexture.UnderlyingTexture, ResourceStates.Common, ResourceStates.CopyDestination);
-            initializerList.TranslateResourceStates(new(&barrier, 1));
+            initializerList.TranslateResourceStates([
+                new(_fontTexture.UnderlyingTexture, ResourceStates.Common, ResourceStates.CopyDestination),
+            ]);
 
             initializerList.UpdateResource(_fontTexture.UnderlyingTexture, new(pFontPixels, width * height * 4));
 
@@ -122,68 +122,12 @@ internal unsafe class ImGuiController : IDisposable {
         // Create shader
         {
             using ComPtr<IDxcBlob> pVSBlob = default;
-            using ComPtr<IDxcBlob> pRSBlob = default;
             using ComPtr<IDxcBlob> pPSBlob = default;
 
             var source = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "ImGuiShader.hlsl"));
-            fixed (byte* pSource = source) {
-                var buffer = new Silk.NET.Direct3D.Compilers.Buffer() {
-                    Ptr = pSource,
-                    Size = (nuint)source.Length,
-                    Encoding = 0,
-                };
 
-                using ComPtr<IDxcCompiler3> pCompiler = default;
-
-                int hr = DxcCompilation.CreateCompilerObject(pCompiler.GetAddressOf());
-                Marshal.ThrowExceptionForHR(hr);
-
-                char** pArguments = stackalloc char*[] {
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-T\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("vs_6_0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-E\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("vsmain")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-Zpc\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-all_resources_bound\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-Qstrip_rootsignature\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-Qstrip_debug\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-Qstrip_priv\0")),
-                    (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("-O0")),
-                };
-
-                using ComPtr<IDxcResult> pResult = default;
-                hr = pCompiler.Compile(&buffer, pArguments, 10, (IDxcIncludeHandler*)null, SilkMarshal.GuidPtrOf<IDxcResult>(), (void**)&pResult);
-                Marshal.ThrowExceptionForHR(hr);
-
-                DxcCompilation.ReportErrors<int>(pResult, (result, msg, arg) => {
-                    Console.WriteLine("Vertex Shader compilation warning: " + msg);
-                }, 0, (result, msg, arg) => {
-                    throw new Exception("Failed to compile Vertex Shader: " + msg);
-                }, 0);
-
-                hr = pResult.GetOutput(OutKind.RootSignature, SilkMarshal.GuidPtrOf<IDxcBlob>(), (void**)pRSBlob.GetAddressOf(), null);
-                Marshal.ThrowExceptionForHR(hr);
-
-                hr = pResult.GetResult(pVSBlob.GetAddressOf());
-                Marshal.ThrowExceptionForHR(hr);
-
-                pArguments[1] = (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("ps_6_0"));
-                pArguments[3] = (char*)Unsafe.AsPointer(ref MemoryMarshal.GetReference<char>("psmain"));
-
-                pResult.Dispose();
-
-                hr = pCompiler.Compile(&buffer, pArguments, 10, (IDxcIncludeHandler*)null, SilkMarshal.GuidPtrOf<IDxcResult>(), (void**)&pResult);
-                Marshal.ThrowExceptionForHR(hr);
-
-                DxcCompilation.ReportErrors<int>(pResult, (result, msg, arg) => {
-                    Console.WriteLine("Pixel Shader compilation warning: " + msg);
-                }, 0, (result, msg, arg) => {
-                    throw new Exception("Failed to compile Pixel Shader: " + msg);
-                }, 0);
-
-                hr = pResult.GetResult(pPSBlob.GetAddressOf());
-                Marshal.ThrowExceptionForHR(hr);
-            }
+            ShaderCompileUtils.CompileShader(source, "vs_6_0\0", "vsmain\0", "-O3", default, pVSBlob.GetAddressOf());
+            ShaderCompileUtils.CompileShader(source, "ps_6_0\0", "psmain\0", "-O3", default, pPSBlob.GetAddressOf());
 
             var rdesc = new RasterizationConfig() {
                 FillMode = FillingMode.Solid,
@@ -219,38 +163,77 @@ internal unsafe class ImGuiController : IDisposable {
                 WriteMask = RenderTargetWriteMask.All,
             });
 
-            _shader = factory.CreateGraphicalShader(pVSBlob.AsSpan(), pPSBlob.AsSpan(), default, default, pRSBlob.AsSpan());
+            _resourceSignature = factory.CreateResourceSignature(new() {
+                Parameters = [
+                    new() {
+                        Type = ResourceParameterType.Constants,
+                        Constants = new() {
+                            NumConstants = 17,
+                            Register = 0,
+                            Space = 0,
+                        },
+                    },
+                    // VertexBuffer
+                    new() {
+                        Type = ResourceParameterType.Table,
+                        Table = new() {
+                            Ranges = [
+                                new() {
+                                    Type = ResourceRangeType.ResourceView,
+                                    NumResources = 1,
+                                    BaseRegister = 0,
+                                    Space = 0,
+                                },
+                            ],
+                        },
+                    },
+                    // Texture
+                    new() {
+                        Type = ResourceParameterType.Table,
+                        Table = new() {
+                            Ranges = [
+                                new() {
+                                    Type = ResourceRangeType.ResourceView,
+                                    NumResources = 1,
+                                    BaseRegister = 1,
+                                    Space = 0,
+                                },
+                            ],
+                        },
+                    },
+                ],
 
-            bool get = _shader.TryGetConstantBufferInfo("_Transformation", out var cbinfo);
-            Debug.Assert(get);
+                ImmutableSamplers = [
+                    new() {
+                        AddressU = TextureAddressingMode.Wrap,
+                        AddressV = TextureAddressingMode.Wrap,
+                        AddressW = TextureAddressingMode.Wrap,
+                        Filter = SamplerFilter.Linear,
+                        ComparisonOp = ComparisonOperator.Always,
+                        MipLodBias = 0,
+                        MaxAnisotropy = 0,
+                        MinLod = 0,
+                        MaxLod = 0,
+                        Register = 0,
+                        Space = 0,
+                    }
+                ],
+            });
 
-            _transformationBindingLoc = cbinfo.BindingLocation;
-
-            get = _shader.TryGetConstantBufferInfo("_Constants", out cbinfo);
-            Debug.Assert(get);
-
-            _constantsBindingLoc = cbinfo.BindingLocation;
-
-            get = _shader.TryGetReadonlyResourceInfo("_VertexBuffer", out var rorinfo);
-            Debug.Assert(get);
-
-            _vertexBufferBindingLoc = rorinfo.BindingLocation;
-
-            get = _shader.TryGetReadonlyResourceInfo("_MainTexture", out rorinfo);
-            Debug.Assert(get);
-
-            _mainTextureBindingLoc = rorinfo.BindingLocation;
+            _shader = factory.CreateGraphicalShader(pVSBlob.AsSpan(), pPSBlob.AsSpan(), default, default);
 
             RenderTargetFormats formats = default;
             formats[0] = GraphicsFormat.R8G8B8A8UNorm;
-            _pipelineState = factory.CreatePipelineState(_shader, new() {
+            _pipelineState = factory.CreatePipelineState(_shader, _resourceSignature, new() {
                 Rasterization = rdesc,
                 Blending = blend,
                 DepthStencil = depth,
                 RenderTargetFormats = new() {
                     NumRenderTargets = 1,
                     Formats = formats,
-                }
+                },
+                DepthFormat = GraphicsFormat.Unknown,
+                PrimitiveTopology = PipelinePrimitiveTopology.Triangle,
             });
         }
     }
@@ -398,13 +381,10 @@ internal unsafe class ImGuiController : IDisposable {
         Matrix4x4 projection = Matrix4x4.CreateOrthographicOffCenter(0, io.DisplaySize.X, io.DisplaySize.Y, 0, 0, 1000);
 
         cmdList.SetPipelineState(_pipelineState);
-
-        cmdList.SetPipelineResourceSets(_shader);
-
-        cmdList.UpdateBufferRegion(_constantBuffer, 0, 64, new(&projection, 64));
-
-        cmdList.SetGraphicsConstantBuffer(_transformationBindingLoc, _constantBuffer);
-        cmdList.SetGraphicsReadonlyResource(_vertexBufferBindingLoc, _vertexBufferView);
+        cmdList.SetGraphicsResourceSignature(_resourceSignature);
+        cmdList.SetGraphicsConstants(0, MemoryMarshal.Cast<Matrix4x4, uint>(new(&projection, 1)), 0);
+        cmdList.SetGraphicsResourceView(1, 0, _vertexBufferView);
+        cmdList.SetPrimitiveTopology(RenderingPrimitiveTopology.TriangleList);
         cmdList.SetIndexBuffer(_indexBuffer, IndexFormat.UInt16, 0);
         cmdList.SetViewport(new(0, 0, io.DisplaySize.X, io.DisplaySize.Y));
 
@@ -418,19 +398,19 @@ internal unsafe class ImGuiController : IDisposable {
         if (data.CmdListsCount == 0) return;
 
         var bufferDesc = _vertexBuffer.Descriptor;
-        if ((ulong)data.TotalVtxCount > bufferDesc.Width / (uint)sizeof(Vertex)) {
+        if ((ulong)data.TotalVtxCount * (ulong)sizeof(Vertex) > bufferDesc.Width) {
             _vertexBuffer.DecrementReference();
             _vertexBuffer = _context.Factory.CreateResource(bufferDesc with  {
-                Width = (ulong)data.TotalVtxCount * 2,
+                Width = (ulong)sizeof(Vertex) * (ulong)data.TotalVtxCount * 2,
             });
             _vertexBuffer.Name = "ImGui Vertex Buffer";
         }
 
         bufferDesc = _indexBuffer.Descriptor;
-        if ((ulong)data.TotalIdxCount > bufferDesc.Width / sizeof(ushort)) {
+        if ((ulong)data.TotalIdxCount * sizeof(ushort) > bufferDesc.Width) {
             _indexBuffer.DecrementReference();
             _indexBuffer = _context.Factory.CreateResource(bufferDesc with {
-                Width = (ulong)data.TotalIdxCount * sizeof(ushort),
+                Width = sizeof(ushort) * (ulong)data.TotalIdxCount * 2,
             });
             _indexBuffer.Name = "ImGui Index Buffer";
         }
@@ -440,8 +420,11 @@ internal unsafe class ImGuiController : IDisposable {
         for (int i = 0; i < data.CmdListsCount; i++) {
             var cl = data.CmdLists[i];
 
-            cmdList.UpdateResource(_vertexBuffer, MemoryMarshal.AsBytes(new ReadOnlySpan<Vertex>((void*)cl.VtxBuffer.Data, cl.VtxBuffer.Size)));
-            cmdList.UpdateResource(_indexBuffer, MemoryMarshal.AsBytes(new ReadOnlySpan<ushort>((void*)cl.IdxBuffer.Data, cl.IdxBuffer.Size)));
+            var vertexData = MemoryMarshal.AsBytes(new ReadOnlySpan<Vertex>((void*)cl.VtxBuffer.Data, cl.VtxBuffer.Size));
+            var indexData = MemoryMarshal.AsBytes(new ReadOnlySpan<ushort>((void*)cl.IdxBuffer.Data, cl.IdxBuffer.Size));
+
+            cmdList.UpdateBufferRegion(_vertexBuffer, vertexOffset * (uint)sizeof(Vertex), vertexData);
+            cmdList.UpdateBufferRegion(_indexBuffer, indexOffset * sizeof(ushort), indexData);
 
             vertexOffset += (uint)cl.VtxBuffer.Size;
             indexOffset += (uint)cl.IdxBuffer.Size;
@@ -475,13 +458,13 @@ internal unsafe class ImGuiController : IDisposable {
                     Vector2 clipMin = new(pcmd.ClipRect.X - clipOffset.X, pcmd.ClipRect.Y - clipOffset.Y);
                     Vector2 clipMax = new(pcmd.ClipRect.Z - clipOffset.X, pcmd.ClipRect.W - clipOffset.Y);
                     if (clipMax.X <= clipMin.X || clipMax.Y <= clipMin.Y) continue;
-                    
-                    cmdList.SetGraphicsReadonlyResource(_mainTextureBindingLoc, Unsafe.BitCast<nint, NativeResourceView>(pcmd.GetTexID()));
+
+                    cmdList.SetGraphicsResourceView(2, 0, new((ulong)pcmd.GetTexID()));
                     cmdList.SetScissorRect(new((int)clipMin.X, (int)clipMin.Y, (int)clipMax.X, (int)clipMax.Y));
 
                     uint vtxOffset = pcmd.VtxOffset + vertexOffset;
 
-                    cmdList.SetGraphicsConstantBuffer(_constantsBindingLoc, _constantBuffer, 256);
+                    cmdList.SetGraphicsConstants(0, new(&vtxOffset, 1), 16);
                     cmdList.DrawIndexed(pcmd.ElemCount, 1, pcmd.IdxOffset + indexOffset, 0);
                 }
             }

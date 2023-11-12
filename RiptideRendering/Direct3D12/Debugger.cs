@@ -9,9 +9,13 @@ internal unsafe class Debugger : IDisposable {
 
     public bool IsValid => pQueue.Handle != null;
 
-    public Debugger(ID3D12Device* pDevice) {
-        if (pDevice->QueryInterface(SilkMarshal.GuidPtrOf<ID3D12InfoQueue1>(), (void**)pQueue.GetAddressOf()) >= 0) {
-            pDevice->QueryInterface(SilkMarshal.GuidPtrOf<ID3D12DebugDevice2>(), (void**)pDebugDevice.GetAddressOf());
+    private D3D12RenderingContext _context;
+
+    private MessageFunc _errorDelegate;
+
+    public Debugger(D3D12RenderingContext context) {
+        if (context.Device->QueryInterface(SilkMarshal.GuidPtrOf<ID3D12InfoQueue1>(), (void**)pQueue.GetAddressOf()) >= 0) {
+            context.Device->QueryInterface(SilkMarshal.GuidPtrOf<ID3D12DebugDevice2>(), (void**)pDebugDevice.GetAddressOf());
 
             MessageID* denyIDs = stackalloc MessageID[] {
                 MessageID.ClearrendertargetviewMismatchingclearvalue,
@@ -27,9 +31,16 @@ internal unsafe class Debugger : IDisposable {
 
             pQueue.AddStorageFilterEntries(&filter);
 
-            pQueue.RegisterMessageCallback(new(&MessageCallback), MessageCallbackFlags.FlagNone, null, ref _callbackCookie);
+            _errorDelegate = ErrorCallback;
+            pQueue.RegisterMessageCallback(_errorDelegate, MessageCallbackFlags.FlagNone, null, ref _callbackCookie);
+
+            _context = context;
+
         } else {
             Console.WriteLine("Failed to initialize debugger.");
+
+            _context = null!;
+            _errorDelegate = null!;
         }
     }
 
@@ -39,37 +50,23 @@ internal unsafe class Debugger : IDisposable {
         pDebugDevice.ReportLiveDeviceObjects(RldoFlags.Summary | RldoFlags.Detail | RldoFlags.IgnoreInternal);
     }
 
-    [UnmanagedCallersOnly(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-    private static void MessageCallback(MessageCategory category, MessageSeverity severity, MessageID id, byte* pMessage, void* pContext) {
-        var oldColor = Console.ForegroundColor;
+    private void ErrorCallback(MessageCategory category, MessageSeverity severity, MessageID id, byte* pMessage, void* pContext) {
+        if (_context.Logger is not { } logger) return;
 
-        switch (severity) {
-            case MessageSeverity.Corruption:
-            case MessageSeverity.Error:
-                Console.ForegroundColor = ConsoleColor.Red;
-                break;
-
-            case MessageSeverity.Warning:
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                break;
-
-            case MessageSeverity.Message:
-            case MessageSeverity.Info:
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
-        }
+        var type = severity switch {
+            MessageSeverity.Corruption or MessageSeverity.Error => LoggingType.Error,
+            MessageSeverity.Warning => LoggingType.Warning,
+            _ => LoggingType.Info,
+        };
 
         _messageBuilder.Clear();
+        
+        var categoryString = typeof(MessageCategory).GetField(category.ToString())!.GetCustomAttributes<NativeNameAttribute>().First(x => x.Category == "Name").Name;
+        var idString = typeof(MessageID).GetField(id.ToString())!.GetCustomAttributes<NativeNameAttribute>().First(x => x.Category == "Name").Name;
+        
+        _messageBuilder.Append(categoryString).Append(" - ").Append(idString).Append(": ").Append(Marshal.PtrToStringAnsi((nint)pMessage));
 
-        var categoryMessage = typeof(MessageCategory).GetField(category.ToString())!.GetCustomAttributes<NativeNameAttribute>().First(x => x.Category == "Name").Name;
-        var idMessage = typeof(MessageID).GetField(id.ToString())!.GetCustomAttributes<NativeNameAttribute>().First(x => x.Category == "Name").Name;
-
-        _messageBuilder.Append('[').Append(DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss")).Append(']').Append(' ');
-        _messageBuilder.Append(categoryMessage).Append(" - ").Append(idMessage).Append(": ").Append(Marshal.PtrToStringAnsi((nint)pMessage));
-
-        Console.WriteLine(_messageBuilder.ToString());
-
-        Console.ForegroundColor = oldColor;
+        logger.Log(type, _messageBuilder.ToString());
     }
 
     public void Dispose() {

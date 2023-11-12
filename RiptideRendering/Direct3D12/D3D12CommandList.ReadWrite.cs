@@ -46,6 +46,47 @@ unsafe partial class D3D12CommandList {
         });
     }
 
+    public override void UpdateResource(NativeResourceHandle resource, ReadOnlySpan<byte> data) {
+        ResourceDesc rdesc = ((ID3D12Resource*)resource.Handle)->GetDesc();
+
+        PlacedSubresourceFootprint placedSubresource;
+        uint numRows;
+        ulong rowSize;
+        ulong totalSize;
+        _context.Device->GetCopyableFootprints(&rdesc, 0, 1, 0, &placedSubresource, &numRows, &rowSize, &totalSize);
+
+        fixed (byte* pSource = data) {
+            if (rdesc.Dimension == D3D12ResourceDimension.Buffer) {
+                var region = _uploadBuffer.Allocate(totalSize);
+
+                Unsafe.CopyBlock(region.CpuAddress, pSource, uint.Min((uint)data.Length, (uint)rowSize));
+                pCommandList.CopyBufferRegion((ID3D12Resource*)resource.Handle, 0, region.Resource, region.Offset, totalSize);
+            } else {
+                var region = _uploadBuffer.Allocate(totalSize, D3D12.TextureDataPlacementAlignment);
+                placedSubresource.Offset = region.Offset;
+
+                var pitch = placedSubresource.Footprint.RowPitch;
+
+                for (uint r = 0; r < numRows; r++) {
+                    Unsafe.CopyBlock(region.CpuAddress + pitch * r, pSource + rowSize * r, (uint)rowSize);
+                }
+
+                TextureCopyLocation dest = new() {
+                    Type = TextureCopyType.SubresourceIndex,
+                    PResource = (ID3D12Resource*)resource.Handle,
+                    SubresourceIndex = 0,
+                };
+                TextureCopyLocation src = new() {
+                    Type = TextureCopyType.PlacedFootprint,
+                    PResource = region.Resource,
+                    PlacedFootprint = placedSubresource,
+                };
+
+                pCommandList.CopyTextureRegion(&dest, 0, 0, 0, &src, (Box*)null);
+            }
+        }
+    }
+
     public override void UpdateResource<T>(NativeResourceHandle resource, ResourceWriter<T> writer, T state) {
         ResourceDesc rdesc = ((ID3D12Resource*)resource.Handle)->GetDesc();
 
@@ -93,8 +134,29 @@ unsafe partial class D3D12CommandList {
 
     }
 
-    public override void UpdateBufferRegion(NativeResourceHandle resource, uint offset, uint length, ReadOnlySpan<byte> source) {
-        
+    public override void UpdateBufferRegion(NativeResourceHandle resource, uint offset, ReadOnlySpan<byte> source) {
+        ResourceDesc rdesc = ((ID3D12Resource*)resource.Handle)->GetDesc();
+
+        PlacedSubresourceFootprint placedSubresource;
+        uint numRows;
+        ulong rowSize;
+        ulong totalSize;
+
+        if (rdesc.Dimension == D3D12ResourceDimension.Buffer) {
+            _context.Device->GetCopyableFootprints(&rdesc, 0, 1, 0, &placedSubresource, &numRows, &rowSize, &totalSize);
+
+            var region = _uploadBuffer.Allocate(totalSize);
+
+            uint size = uint.Min((uint)source.Length, (uint)rowSize);
+
+            fixed (byte* pSource = source) {
+                Unsafe.CopyBlock(region.CpuAddress, pSource, size);
+            }
+
+            pCommandList.CopyBufferRegion((ID3D12Resource*)resource.Handle, offset, region.Resource, region.Offset, size);
+        } else {
+            _context.Logger?.Log(LoggingType.Warning, "UpdateBufferRegion: Resource is expected to be a buffer.");
+        }
     }
 
     //public override void UpdateBuffer(NativeBufferHandle resource, uint offset, ReadOnlySpan<byte> data) {

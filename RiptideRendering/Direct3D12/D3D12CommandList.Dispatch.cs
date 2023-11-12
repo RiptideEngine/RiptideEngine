@@ -16,12 +16,12 @@ unsafe partial class D3D12CommandList {
         pCommandList.DrawIndexedInstanced(indexCount, instanceCount, startIndexLoc, 0, startInstanceLoc);
     }
 
-    public override void Dispatch(uint threadGroupX, uint threadGroupY, uint threadGroupZ) {
-        EnsureNotClosed();
+    //public override void Dispatch(uint threadGroupX, uint threadGroupY, uint threadGroupZ) {
+    //    EnsureNotClosed();
 
-        _descCommitter.CommitCompute(pCommandList);
-        pCommandList.Dispatch(threadGroupX, threadGroupY, threadGroupZ);
-    }
+    //    _descCommitter.CommitCompute(pCommandList);
+    //    pCommandList.Dispatch(threadGroupX, threadGroupY, threadGroupZ);
+    //}
 
     // TODO: ExecuteIndirect
 }

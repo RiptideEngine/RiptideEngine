@@ -1,6 +1,8 @@
 ﻿namespace RiptideRendering;
 
-public readonly record struct NativeResourceView(ulong Handle);
+public readonly record struct NativeResourceView(ulong Handle) {
+    public static implicit operator ulong(NativeResourceView view) => view.Handle;
+}
 
 [EnumExtension]
 public enum ResourceViewDimension {
@@ -19,7 +21,7 @@ public enum ResourceViewDimension {
 [StructLayout(LayoutKind.Explicit)]
 public struct ResourceViewDescriptor {
     [FieldOffset(0)] public ResourceViewDimension Dimension;
-    [FieldOffset(0)] public GraphicsFormat Format;
+    [FieldOffset(4)] public GraphicsFormat Format;
 
     [FieldOffset(8)] public BufferView Buffer;
     [FieldOffset(8)] public Texture1DView Texture1D;

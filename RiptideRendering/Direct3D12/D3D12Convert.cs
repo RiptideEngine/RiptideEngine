@@ -14,7 +14,7 @@ internal static unsafe class D3D12Convert {
     public static bool TryConvert(ResourceRangeType input, out DescriptorRangeType output) {
         switch (input) {
             case ResourceRangeType.ConstantBuffer: output = DescriptorRangeType.Cbv; return true;
-            case ResourceRangeType.ReadonlyResource: output = DescriptorRangeType.Srv; return true;
+            case ResourceRangeType.ResourceView: output = DescriptorRangeType.Srv; return true;
             case ResourceRangeType.UnorderedAccess: output = DescriptorRangeType.Uav; return true;
             case ResourceRangeType.Sampler: output = DescriptorRangeType.Sampler; return true;
         }

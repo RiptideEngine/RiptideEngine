@@ -14,8 +14,8 @@ internal sealed unsafe class D3D12Factory : BaseFactory {
         return new D3D12PipelineState(_context, d3d12shader, d3d12pr, config);
     }
 
-    public override ResourceSignature CreateResourceSignature(ReadOnlySpan<ResourceTableDescriptor> resourceRanges, ReadOnlySpan<ImmutableSamplerDescriptor> immutableSamplers) {
-        return new D3D12ResourceSignature(_context, resourceRanges, immutableSamplers);
+    protected override ResourceSignature CreateResourceSignatureImpl(ResourceSignatureDescriptor descriptor) {
+        return new D3D12ResourceSignature(_context, descriptor);
     }
 
     public override GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) {

@@ -20,51 +20,50 @@ public sealed unsafe class SceneViewWindow : EditorWindow {
     //private ReadbackBuffer _pickingReadback = null!;
 
     public SceneViewWindow() {
-        _sceneService = EditorApplication.Services.GetRequiredService<ISceneGraphService>();
-        _inputService = EditorApplication.Services.GetRequiredService<IInputService>();
+        //_sceneService = EditorApplication.Services.GetRequiredService<ISceneGraphService>();
+        //_inputService = EditorApplication.Services.GetRequiredService<IInputService>();
 
-        var source = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "NodeIDWriter.hlsl"));
+        //var source = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "NodeIDWriter.hlsl"));
 
-        using ComPtr<IDxcBlob> pVSBytecode = default;
-        using ComPtr<IDxcBlob> pRSBytecode = default;
-        using ComPtr<IDxcBlob> pPSBytecode = default;
+        //using ComPtr<IDxcBlob> pVSBytecode = default;
+        //using ComPtr<IDxcBlob> pPSBytecode = default;
 
-        ShaderCompileUtils.CompileShader(source, "vs_6_0\0", "vsmain\0", "-O3\0", default, pVSBytecode.GetAddressOf(), pRSBytecode.GetAddressOf());
-        ShaderCompileUtils.CompileShader(source, "ps_6_0\0", "psmain\0", "-O3\0", default, pPSBytecode.GetAddressOf(), null);
+        //ShaderCompileUtils.CompileShader(source, "vs_6_0\0", "vsmain\0", "-O3\0", default, pVSBytecode.GetAddressOf());
+        //ShaderCompileUtils.CompileShader(source, "ps_6_0\0", "psmain\0", "-O3\0", default, pPSBytecode.GetAddressOf());
 
-        _pickingShader = EditorApplication.RenderingContext.Factory.CreateGraphicalShader(pVSBytecode.AsSpan(), pPSBytecode.AsSpan(), default, default, pRSBytecode.AsSpan());
+        //_pickingShader = EditorApplication.RenderingContext.Factory.CreateGraphicalShader(pVSBytecode.AsSpan(), pPSBytecode.AsSpan(), default, default, pRSBytecode.AsSpan());
 
-        RenderTargetFormats formats = default;
-        formats[0] = GraphicsFormat.R32UInt;
-        _pickingPSO = EditorApplication.RenderingContext.Factory.CreatePipelineState(_pickingShader, new PipelineStateConfig() {
-            Blending = BlendingConfig.Disable,
-            DepthStencil = new() {
-                EnableDepth = true,
-                EnableStencil = true,
-                DepthComparison = ComparisonOperator.Less,
-                BackfaceOperation = new() {
-                    DepthFailOp = StencilOperation.Decrease,
-                    FailOp = StencilOperation.Keep,
-                    PassOp = StencilOperation.Keep,
-                    CompareOp = ComparisonOperator.Always,
-                },
-                FrontFaceOperation = new() {
-                    DepthFailOp = StencilOperation.Increase,
-                    FailOp = StencilOperation.Keep,
-                    PassOp = StencilOperation.Keep,
-                    CompareOp = ComparisonOperator.Always,
-                },
-            },
-            Rasterization = new() {
-                Conservative = false,
-                CullMode = CullingMode.None,
-                FillMode = FillingMode.Solid,
-            },
-            RenderTargetFormats = new() {
-                NumRenderTargets = 1,
-                Formats = formats,
-            },
-        });
+        //RenderTargetFormats formats = default;
+        //formats[0] = GraphicsFormat.R32UInt;
+        //_pickingPSO = EditorApplication.RenderingContext.Factory.CreatePipelineState(_pickingShader, new PipelineStateConfig() {
+        //    Blending = BlendingConfig.Disable,
+        //    DepthStencil = new() {
+        //        EnableDepth = true,
+        //        EnableStencil = true,
+        //        DepthComparison = ComparisonOperator.Less,
+        //        BackfaceOperation = new() {
+        //            DepthFailOp = StencilOperation.Decrease,
+        //            FailOp = StencilOperation.Keep,
+        //            PassOp = StencilOperation.Keep,
+        //            CompareOp = ComparisonOperator.Always,
+        //        },
+        //        FrontFaceOperation = new() {
+        //            DepthFailOp = StencilOperation.Increase,
+        //            FailOp = StencilOperation.Keep,
+        //            PassOp = StencilOperation.Keep,
+        //            CompareOp = ComparisonOperator.Always,
+        //        },
+        //    },
+        //    Rasterization = new() {
+        //        Conservative = false,
+        //        CullMode = CullingMode.None,
+        //        FillMode = FillingMode.Solid,
+        //    },
+        //    RenderTargetFormats = new() {
+        //        NumRenderTargets = 1,
+        //        Formats = formats,
+        //    },
+        //});
 
         //_pickingReadback = EditorApplication.RenderingContext.Factory.CreateReadbackBuffer(new() {
         //    Size = 4,

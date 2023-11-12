@@ -1,65 +1,54 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class StagingDescriptorHeapPool : IDisposable {
-    private const uint MinimumSize = 128;
-
-    private readonly struct PoolEntry {
-        public readonly ID3D12DescriptorHeap* Heap;
-        public readonly uint NumDescriptors;
-
-        public PoolEntry(ID3D12DescriptorHeap* heap, uint numDescriptors) {
-            Heap = heap;
-            NumDescriptors = numDescriptors;
-        }
-    }
+    private const uint MinimumSize = 256;
 
     private readonly List<nint> _pool;
-    private readonly List<PoolEntry> _availables;
+    private readonly List<AvailableHeap> _availables;
 
-    private ID3D12Device* pDevice;
     private readonly object _lock;
     private readonly DescriptorHeapType _type;
 
-    public StagingDescriptorHeapPool(ID3D12Device* pDevice, DescriptorHeapType type) {
-        this.pDevice = pDevice;
-        pDevice->AddRef();
+    private D3D12RenderingContext _context;
 
+    public StagingDescriptorHeapPool(D3D12RenderingContext context, DescriptorHeapType type) {
         _type = type;
-        _pool = new List<nint>();
-        _availables = new();
+        _pool = [];
+        _availables = [];
         _lock = new();
+
+        _context = context;
     }
 
-    public ID3D12DescriptorHeap* Request(out uint descriptorSize) => Request(MinimumSize, out descriptorSize);
-    public ID3D12DescriptorHeap* Request(uint minimumSize, out uint descriptorSize) {
+    public ID3D12DescriptorHeap* Request(uint minimumSize) {
         lock (_lock) {
             for (int i = 0; i < _availables.Count; i++) {
-                var entry = _availables[i];
+                var available = _availables[i];
 
-                if (entry.NumDescriptors >= minimumSize) {
-                    _availables.RemoveAt(i);
-                    descriptorSize = entry.NumDescriptors;
+                if (available.NumDescriptors < minimumSize) continue;
 
-                    return entry.Heap;
-                }
+                _availables.RemoveAt(i);
+                return available.Heap;
             }
 
-            uint numDescriptors = uint.Max(minimumSize, MinimumSize);
-            ID3D12DescriptorHeap* pOutput;
-
-            int hr = pDevice->CreateDescriptorHeap(new DescriptorHeapDesc() {
+            DescriptorHeapDesc desc = new() {
                 NodeMask = 1,
                 Type = _type,
-                NumDescriptors = numDescriptors,
-            }, SilkMarshal.GuidPtrOf<ID3D12DescriptorHeap>(), (void**)&pOutput);
+                NumDescriptors = uint.Max(minimumSize, MinimumSize),
+                Flags = DescriptorHeapFlags.None,
+            };
+
+            ID3D12DescriptorHeap* pHeap;
+            int hr = _context.Device->CreateDescriptorHeap(&desc, SilkMarshal.GuidPtrOf<ID3D12DescriptorHeap>(), (void**)&pHeap);
             Marshal.ThrowExceptionForHR(hr);
 
-            _pool.Add((nint)pOutput);
+            D3D12Helper.SetName(pHeap, $"StagingDescriptorHeap {_pool.Count}");
 
-            Console.WriteLine($"Direct3D12 - {GetType().Name}: Heap created (Ptr = 0x{(nint)pOutput:X8}, NumDescriptors = {numDescriptors}, CPU Handle = 0x{pOutput->GetCPUDescriptorHandleForHeapStart().Ptr:X8}).");
+            _pool.Add((nint)pHeap);
 
-            descriptorSize = numDescriptors;
-            return pOutput;
+            _context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(StagingDescriptorHeap)}: Staging descriptor heap allocated (NumDescriptors = {desc.NumDescriptors}, Address = 0x{(nint)pHeap:X}, CPU Handle = 0x{(nint)pHeap->GetCPUDescriptorHandleForHeapStart().Ptr:X}). ");
+
+            return pHeap;
         }
     }
 
@@ -67,12 +56,12 @@ internal sealed unsafe class StagingDescriptorHeapPool : IDisposable {
         Debug.Assert(pHeap != null);
 
         lock (_lock) {
-            _availables.Add(new(pHeap, pHeap->GetDesc().NumDescriptors));
+            _availables.Add(new(pHeap));
         }
     }
 
     private void Dispose(bool disposing) {
-        if (pDevice == null) return;
+        if (_context == null) return;
 
         if (disposing) { }
 
@@ -84,7 +73,7 @@ internal sealed unsafe class StagingDescriptorHeapPool : IDisposable {
             _availables.Clear();
         }
 
-        pDevice->Release(); pDevice = null;
+        _context = null!;
     }
 
     ~StagingDescriptorHeapPool() {
@@ -95,63 +84,89 @@ internal sealed unsafe class StagingDescriptorHeapPool : IDisposable {
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
+
+    private readonly struct AvailableHeap(ID3D12DescriptorHeap* heap, uint numDescriptors) {
+        public readonly ID3D12DescriptorHeap* Heap = heap;
+        public readonly uint NumDescriptors = numDescriptors;
+
+        public AvailableHeap(ID3D12DescriptorHeap* heap) : this(heap, heap->GetDesc().NumDescriptors) { }
+    }
 }
 
-internal unsafe struct StagingDescriptorHeapLinearAllocator {
+internal sealed unsafe class StagingDescriptorHeap {
     private ID3D12DescriptorHeap* pHeap;
     private uint _numDescriptors;
-    private uint _allocIndex;
+    private uint _allocated;
     private CpuDescriptorHandle _startHandle;
 
-    public readonly uint AllocatedAmount => _allocIndex;
-    public readonly uint NumDescriptors => _numDescriptors;
+    private readonly object _lock = new();
 
-    public readonly bool IsValid => pHeap != null;
+    public bool IsValid => pHeap != null;
 
-    public StagingDescriptorHeapLinearAllocator(StagingDescriptorHeapPool pool) {
-        pHeap = pool.Request(out _numDescriptors);
-        _startHandle = pHeap->GetCPUDescriptorHandleForHeapStart();
+    public StagingDescriptorHeap() {
     }
 
-    public StagingDescriptorHeapLinearAllocator(StagingDescriptorHeapPool pool, uint minimumSize) {
-        pHeap = pool.Request(minimumSize, out _numDescriptors);
-        _startHandle = pHeap->GetCPUDescriptorHandleForHeapStart();
+    public void InitializeHeap(StagingDescriptorHeapPool pool, uint numDescriptors) {
+        lock (_lock) {
+            Debug.Assert(pHeap == null);
+
+            pHeap = pool.Request(numDescriptors);
+            _startHandle = pHeap->GetCPUDescriptorHandleForHeapStart();
+            _numDescriptors = pHeap->GetDesc().NumDescriptors;
+            _allocated = 0;
+        }
     }
 
     public bool TryAllocate(uint numDescriptors, uint descriptorIncrementSize, out CpuDescriptorHandle handle) {
-        if (_allocIndex + numDescriptors > _numDescriptors) {
-            handle = D3D12Helper.UnknownCpuHandle;
-            return false;
+        lock (_lock) {
+            if (_allocated + numDescriptors >= _numDescriptors) {
+                handle = D3D12Helper.UnknownCpuHandle;
+
+                return false;
+            }
+
+            handle = Unsafe.BitCast<nuint, CpuDescriptorHandle>(_startHandle.Ptr + descriptorIncrementSize * _allocated);
+            _allocated += numDescriptors;
+
+            return true;
         }
-
-        handle = Unsafe.BitCast<nuint, CpuDescriptorHandle>(_startHandle.Ptr + descriptorIncrementSize * _allocIndex);
-        _allocIndex += numDescriptors;
-
-        return true;
     }
 
-    public readonly bool HasEnoughDescriptors(uint numDescriptors) {
-        return _allocIndex + numDescriptors <= _numDescriptors;
-    }
+    public void Return(StagingDescriptorHeapPool pool) {
+        lock (_lock) {
+            if (pHeap == null) return;
 
-    public void Finish(StagingDescriptorHeapPool pool) {
-        if (pHeap != null) {
             pool.Return(pHeap);
-        }
 
-        pHeap = null;
-        _allocIndex = 0;
-        _numDescriptors = 0;
-        _startHandle = D3D12Helper.UnknownCpuHandle;
+            pHeap = null;
+            _allocated = 0;
+            _numDescriptors = 0;
+            _startHandle = D3D12Helper.UnknownCpuHandle;
+        }
     }
 
     public ID3D12DescriptorHeap* DetachHeap() {
-        var heap = pHeap;
-        pHeap = null;
-        _allocIndex = 0;
-        _numDescriptors = 0;
-        _startHandle = D3D12Helper.UnknownCpuHandle;
+        lock (_lock) {
+            Debug.Assert(pHeap != null);
 
-        return heap;
+            var heap = pHeap;
+            pHeap = null;
+            _allocated = 0;
+            _numDescriptors = 0;
+            _startHandle = D3D12Helper.UnknownCpuHandle;
+
+            return heap;
+        }
+    }
+
+    public void RequestHeap(StagingDescriptorHeapPool pool, uint minimumDescriptors) {
+        lock (_lock) {
+            Debug.Assert(pHeap == null);
+
+            pHeap = pool.Request(minimumDescriptors);
+            _numDescriptors = pHeap->GetDesc().NumDescriptors;
+            _startHandle = pHeap->GetCPUDescriptorHandleForHeapStart();
+            _allocated = 0;
+        }
     }
 }

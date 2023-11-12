@@ -15,15 +15,17 @@ internal sealed unsafe class CommandQueue : IDisposable {
     public ulong NextFenceValue => _nextFenceValue;
     public ulong CompletedValue => pFence.GetCompletedValue();
 
-    public CommandQueue(ID3D12Device* pDevice, CommandListType type) {
+    private D3D12RenderingContext _context;
+
+    public CommandQueue(D3D12RenderingContext context, CommandListType type) {
         try {
-            int hr = pDevice->CreateCommandQueue(new CommandQueueDesc() {
+            int hr = context.Device->CreateCommandQueue(new CommandQueueDesc() {
                 Type = type,
                 NodeMask = 1,
             }, SilkMarshal.GuidPtrOf<ID3D12CommandQueue>(), (void**)pQueue.GetAddressOf());
             Marshal.ThrowExceptionForHR(hr);
 
-            hr = pDevice->CreateFence(0, FenceFlags.None, SilkMarshal.GuidPtrOf<ID3D12Fence>(), (void**)pFence.GetAddressOf());
+            hr = context.Device->CreateFence(0, FenceFlags.None, SilkMarshal.GuidPtrOf<ID3D12Fence>(), (void**)pFence.GetAddressOf());
             Marshal.ThrowExceptionForHR(hr);
 
             hEvent = SilkMarshal.CreateWindowsEvent(null, false, false, null);
@@ -31,7 +33,7 @@ internal sealed unsafe class CommandQueue : IDisposable {
                 Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
             }
 
-            _allocatorPool = new(pDevice, type);
+            _allocatorPool = new(context, type);
 
             hr = pFence.Signal((ulong)type << TypeBitshift);
             Marshal.ThrowExceptionForHR(hr);
@@ -40,6 +42,8 @@ internal sealed unsafe class CommandQueue : IDisposable {
             _nextFenceValue = _lastCompletedFenceValue + 1;
 
             Type = type;
+
+            _context = context;
         } catch {
             Dispose(true);
             throw;
@@ -92,7 +96,7 @@ internal sealed unsafe class CommandQueue : IDisposable {
     }
 
     public void ReturnAllocator(ulong fenceValue, ID3D12CommandAllocator* allocator) {
-        _allocatorPool.ReturnAllocator(fenceValue, allocator);
+        _allocatorPool.Return(fenceValue, allocator);
     }
 
     private void Dispose(bool disposing) {
@@ -105,6 +109,7 @@ internal sealed unsafe class CommandQueue : IDisposable {
         var _ = SilkMarshal.CloseWindowsHandle(hEvent); hEvent = nint.Zero;
         pQueue.Dispose(); pQueue = default;
         pFence.Dispose(); pFence = default;
+        _context = null!;
     }
 
     ~CommandQueue() {

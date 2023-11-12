@@ -18,10 +18,10 @@ internal readonly unsafe struct DeviceDependentConstants {
 
         // Highest root sig version
         {
-            ReadOnlySpan<D3DRootSignatureVersion> versions = stackalloc D3DRootSignatureVersion[] {
+            ReadOnlySpan<D3DRootSignatureVersion> versions = [
                 D3DRootSignatureVersion.Version11,
                 D3DRootSignatureVersion.Version10,
-            };
+            ];
 
             foreach (var version in versions) {
                 FeatureDataRootSignature data = new() {
@@ -39,7 +39,7 @@ internal readonly unsafe struct DeviceDependentConstants {
 
         // Highest shader model version
         {
-            ReadOnlySpan<D3DShaderModel> models = stackalloc D3DShaderModel[] {
+            ReadOnlySpan<D3DShaderModel> models = [
                 D3DShaderModel.ShaderModel67,
                 D3DShaderModel.ShaderModel66,
                 D3DShaderModel.ShaderModel65,
@@ -49,7 +49,7 @@ internal readonly unsafe struct DeviceDependentConstants {
                 D3DShaderModel.ShaderModel61,
                 D3DShaderModel.ShaderModel60,
                 D3DShaderModel.ShaderModel51,
-            };
+            ];
 
             foreach (var version in models) {
                 FeatureDataShaderModel data = new() {
@@ -68,7 +68,7 @@ internal readonly unsafe struct DeviceDependentConstants {
         // Option 7
         {
             FeatureDataD3D12Options7 data;
-
+            
             int hr = pDevice->CheckFeatureSupport(D3D12Feature.D3D12Options7, &data, (uint)sizeof(FeatureDataD3D12Options7));
             Debug.Assert(hr >= 0);
 

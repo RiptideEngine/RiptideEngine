@@ -16,65 +16,65 @@ internal sealed unsafe class GameViewWindow : EditorWindow {
         ImGui.PopStyleVar();
 
         if (render) {
-            var containerSize = ImGui.GetWindowContentRegionMax() - ImGui.GetWindowContentRegionMin();
-            var textureSize = CalculateGameDisplaySize(containerSize, 16f / 9f);
+            //var containerSize = ImGui.GetWindowContentRegionMax() - ImGui.GetWindowContentRegionMin();
+            //var textureSize = CalculateGameDisplaySize(containerSize, 16f / 9f);
 
-            int textureSizeX = (int)textureSize.X, textureSizeY = (int)textureSize.Y;
+            //int textureSizeX = (int)textureSize.X, textureSizeY = (int)textureSize.Y;
 
-            if (textureSizeX <= 0 || textureSizeY <= 0) {
-                _gameOutput?.DecrementReference();
-            } else {
-                var textureCenter = ImGui.GetWindowPos() + ImGui.GetWindowContentRegionMin() + containerSize / 2;
+            //if (textureSizeX <= 0 || textureSizeY <= 0) {
+            //    _gameOutput?.DecrementReference();
+            //} else {
+            //    var textureCenter = ImGui.GetWindowPos() + ImGui.GetWindowContentRegionMin() + containerSize / 2;
 
-                var context = EditorApplication.RenderingContext;
-                var factory = context.Factory;
+            //    var context = EditorApplication.RenderingContext;
+            //    var factory = context.Factory;
 
-                CommandList cmdList;
+            //    CommandList cmdList;
 
-                if ((textureSize - GameRuntimeContext.WindowService.Size).LengthSquared() >= 0.001f) {
-                    _gameOutput?.DecrementReference();
+            //    if ((textureSize - GameRuntimeContext.WindowService.Size).LengthSquared() >= 0.001f) {
+            //        _gameOutput?.DecrementReference();
 
-                    uint textureWidth = (uint)textureSize.X, textureHeight = (uint)textureSize.Y;
+            //        uint textureWidth = (uint)textureSize.X, textureHeight = (uint)textureSize.Y;
 
-                    _gameOutput = new(TextureDimension.Texture2D, (uint)textureSize.X, (ushort)textureSize.Y, 1, GraphicsFormat.R8G8B8A8UNorm, GraphicsFormat.D24UNormS8UInt) {
-                        Name = "GameViewWindow._gameRenderTexture"
-                    };
+            //        _gameOutput = new(TextureDimension.Texture2D, (uint)textureSize.X, (ushort)textureSize.Y, 1, GraphicsFormat.R8G8B8A8UNorm, GraphicsFormat.D24UNormS8UInt) {
+            //            Name = "GameViewWindow._gameRenderTexture"
+            //        };
 
-                    GameRuntimeContext.WindowService.Size = textureSize;
-                } else {
-                    cmdList = factory.CreateCommandList();
+            //        GameRuntimeContext.WindowService.Size = textureSize;
+            //    } else {
+            //        cmdList = factory.CreateCommandList();
 
-                    cmdList.TranslateResourceStates([
-                        new(_gameOutput.UnderlyingTexture, ResourceStates.ShaderResource, ResourceStates.RenderTarget),
-                        new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthRead, ResourceStates.DepthWrite),
-                    ]);
+            //        cmdList.TranslateResourceStates([
+            //            new(_gameOutput.UnderlyingTexture, ResourceStates.ShaderResource, ResourceStates.RenderTarget),
+            //            new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthRead, ResourceStates.DepthWrite),
+            //        ]);
 
-                    cmdList.Close();
-                    Graphics.AddCommandListExecutionBatch(cmdList);
-                    cmdList.DecrementReference();
-                }
+            //        cmdList.Close();
+            //        Graphics.AddCommandListExecutionBatch(cmdList);
+            //        cmdList.DecrementReference();
+            //    }
 
-                Graphics.RenderingPipeline.ExecuteRenderingOperation(new() {
-                    OutputCameras = EditorScene.EnumerateScenes().SelectMany(x => x.EnumerateRootEntities()).SelectMany(x => IterateOperation.IterateDownward(x).Prepend(x)).Select(x => x.GetComponent<Camera>()).Where(x => x != null).ToArray()!,
-                    OutputTarget = _gameOutput,
-                });
+            //    //Graphics.RenderingPipeline.ExecuteRenderingOperation(new() {
+            //    //    OutputCameras = EditorScene.EnumerateScenes().SelectMany(x => x.EnumerateRootEntities()).SelectMany(x => IterateOperation.IterateDownward(x).Prepend(x)).Select(x => x.GetComponent<Camera>()).Where(x => x != null).ToArray()!,
+            //    //    OutputTarget = _gameOutput,
+            //    //});
 
-                cmdList = factory.CreateCommandList();
+            //    cmdList = factory.CreateCommandList();
 
-                cmdList.TranslateResourceStates([
-                    new(_gameOutput.UnderlyingTexture, ResourceStates.RenderTarget, ResourceStates.ShaderResource),
-                    new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthWrite, ResourceStates.DepthRead),
-                ]);
+            //    cmdList.TranslateResourceStates([
+            //        new(_gameOutput.UnderlyingTexture, ResourceStates.RenderTarget, ResourceStates.ShaderResource),
+            //        new(_gameOutput.UnderlyingDepthTexture!, ResourceStates.DepthWrite, ResourceStates.DepthRead),
+            //    ]);
 
-                cmdList.Close();
-                Graphics.AddCommandListExecutionBatch(cmdList);
-                cmdList.DecrementReference();
+            //    cmdList.Close();
+            //    Graphics.AddCommandListExecutionBatch(cmdList);
+            //    cmdList.DecrementReference();
 
-                Graphics.FlushCommandListExecutionBatch();
+            //    Graphics.FlushCommandListExecutionBatch();
 
-                ImGui.SetCursorPos(ImGui.GetCursorPos() + (containerSize - textureSize) / 2);
-                ImGui.Image((nint)_gameOutput.UnderlyingTexture.NativeResource.Handle, textureSize);
-            }
+            //    ImGui.SetCursorPos(ImGui.GetCursorPos() + (containerSize - textureSize) / 2);
+            //    ImGui.Image((nint)_gameOutput.UnderlyingTexture.NativeResource.Handle, textureSize);
+            //}
 
             ImGui.End();
         }

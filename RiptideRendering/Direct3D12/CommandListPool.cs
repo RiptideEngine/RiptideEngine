@@ -25,7 +25,7 @@ internal unsafe sealed class CommandListPool : IDisposable {
             D3D12CommandList ctx = new(_context);
             _pool.Add(ctx);
 
-            Console.WriteLine($"Direct3D12 - CommandListPool: New command list created.");
+            _context.Logger?.Log(LoggingType.Info, $"Direct3D12 - CommandListPool: New command list created.");
 
             return ctx;
         }

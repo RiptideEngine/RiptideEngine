@@ -2,7 +2,7 @@
 
 internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
     public D3D12RenderTargetView(D3D12RenderingContext context, D3D12GpuResource resource, RenderTargetViewDescriptor descriptor) {
-        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Rtv).Allocate(1);
+        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Rtv).Allocate();
         var convert = D3D12Convert.TryConvert(descriptor.Format, out var format);
         Debug.Assert(convert);
 

@@ -68,8 +68,12 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\RiptideFoundation\RiptideFoundation.csproj" />
-		<Content Include="..\RiptideFoundation\Resources\ShaderAPI\**" >
+		<Content Include="..\RiptideFoundation\Resources\ShaderAPI\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Application\" />
 	</ItemGroup>
 </Project>

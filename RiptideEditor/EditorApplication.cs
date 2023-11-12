@@ -118,23 +118,19 @@ public static unsafe partial class EditorApplication {
         var cmdList = _renderingContext.Factory.CreateCommandList();
 
         (var swapchainTexture, var swapchainRTV) = _renderingContext.SwapchainCurrentRenderTarget;
-        (var swapchainDepth, var swapchainDSV) = _renderingContext.Depth;
 
         // Render the GUI
         cmdList.TranslateResourceStates([
             new(swapchainTexture, ResourceStates.Present, ResourceStates.RenderTarget),
-            new(swapchainDepth, ResourceStates.DepthRead, ResourceStates.DepthWrite),
         ]);
 
-        cmdList.SetRenderTarget(swapchainRTV, swapchainDSV);
+        cmdList.SetRenderTarget(swapchainRTV);
         cmdList.ClearRenderTarget(swapchainRTV, RiptideMathematics.Color.Black);
-        cmdList.ClearDepthTexture(swapchainDSV, DepthClearFlags.All, 1, 0);
 
         _imguiController.Render(cmdList);
 
         cmdList.TranslateResourceStates([
             new(swapchainTexture, ResourceStates.RenderTarget, ResourceStates.Present),
-            new(swapchainDepth, ResourceStates.DepthWrite, ResourceStates.DepthRead),
         ]);
 
         cmdList.Close();

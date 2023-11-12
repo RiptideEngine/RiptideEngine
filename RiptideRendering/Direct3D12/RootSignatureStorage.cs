@@ -1,13 +1,13 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class RootSignatureStorage : IDisposable {
-    private readonly Dictionary<int, nint> _entries;
+    private readonly Dictionary<int, nint> _pool;
     private readonly object _lock;
 
     private D3D12RenderingContext _context;
 
     public RootSignatureStorage(D3D12RenderingContext context) {
-        _entries = new();
+        _pool = new();
         _lock = new();
 
         _context = context;
@@ -59,7 +59,7 @@ internal sealed unsafe class RootSignatureStorage : IDisposable {
         int hr;
 
         lock (_lock) {
-            if (_entries.TryGetValue(hash, out var entry)) {
+            if (_pool.TryGetValue(hash, out var entry)) {
                 *ppOutputSignature = (ID3D12RootSignature*)entry;
 
                 return;
@@ -76,7 +76,7 @@ internal sealed unsafe class RootSignatureStorage : IDisposable {
             hr = _context.Device->CreateRootSignature(1, pSerialized.GetBufferPointer(), pSerialized.GetBufferSize(), SilkMarshal.GuidPtrOf<ID3D12RootSignature>(), (void**)&pRoot);
             Marshal.ThrowExceptionForHR(hr);
 
-            _entries.Add(hash, (nint)pRoot);
+            _pool.Add(hash, (nint)pRoot);
 
             *ppOutputSignature = pRoot;
         }
@@ -88,10 +88,10 @@ internal sealed unsafe class RootSignatureStorage : IDisposable {
         if (disposing) { }
 
         lock (_lock) {
-            foreach ((_, var entry) in _entries) {
+            foreach ((_, var entry) in _pool) {
                 ((ID3D12RootSignature*)entry)->Release();
             }
-            _entries.Clear();
+            _pool.Clear();
         }
 
         _context = null!;

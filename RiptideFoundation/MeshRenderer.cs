@@ -5,7 +5,6 @@ namespace RiptideFoundation;
 [EntityComponent("938f8802-3762-4be8-ba39-480089e3283f")]
 public sealed unsafe class MeshRenderer : Renderer {
     public MeshRenderer() {
-        PipelineState = RuntimeFoundation.TestPipelineState;
     }
 
     public override void Render(CommandList cmdList) {

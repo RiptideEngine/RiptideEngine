@@ -18,8 +18,9 @@ public abstract partial class CommandList : RenderingObject {
     public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas);
 
     // Resource updating
-    public abstract void UpdateBufferRegion(NativeResourceHandle resource, uint offset, uint length, ReadOnlySpan<byte> source);
+    public abstract void UpdateBufferRegion(NativeResourceHandle resource, uint offset, ReadOnlySpan<byte> source);
 
+    public abstract void UpdateResource(NativeResourceHandle resource, ReadOnlySpan<byte> data);
     public abstract void UpdateResource<T>(NativeResourceHandle resource, ResourceWriter<T> writer, T state);
 
     // Resource copying
@@ -40,7 +41,7 @@ public abstract partial class CommandList : RenderingObject {
     public abstract void DrawIndexed(uint indexCount, uint instanceCount, uint startIndexLoc, uint startInstanceLoc);
 
     // Dispatch
-    public abstract void Dispatch(uint threadGroupX, uint threadGroupY, uint threadGroupZ);
+    // public abstract void Dispatch(uint threadGroupX, uint threadGroupY, uint threadGroupZ);
 
     // Others
     public abstract void Close();

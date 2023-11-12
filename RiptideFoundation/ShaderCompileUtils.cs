@@ -5,7 +5,7 @@ using RiptideRendering.Shadering;
 namespace RiptideFoundation;
 
 public static unsafe class ShaderCompileUtils {
-    public static void CompileShader(ReadOnlySpan<byte> source, ReadOnlySpan<char> target, ReadOnlySpan<char> entrypoint, ReadOnlySpan<char> optimization, DxcCompilation.Includer includer, IDxcBlob** ppOutputBytecode, IDxcBlob** ppOutputRootSignature) {
+    public static void CompileShader(ReadOnlySpan<byte> source, ReadOnlySpan<char> target, ReadOnlySpan<char> entrypoint, ReadOnlySpan<char> optimization, DxcCompilation.Includer includer, IDxcBlob** ppOutputBytecode) {
         fixed (byte* pSource = source) {
             var buffer = new Silk.NET.Direct3D.Compilers.Buffer() {
                 Ptr = pSource,
@@ -40,11 +40,6 @@ public static unsafe class ShaderCompileUtils {
             }, 0, (result, msg, arg) => {
                 throw new Exception("Failed to compile Shader: " + msg);
             }, 0);
-
-            if (ppOutputRootSignature != null) {
-                hr = pResult.GetOutput(OutKind.RootSignature, SilkMarshal.GuidPtrOf<IDxcBlob>(), (void**)ppOutputRootSignature, null);
-                Marshal.ThrowExceptionForHR(hr);
-            }
 
             hr = pResult.GetResult(ppOutputBytecode);
             Marshal.ThrowExceptionForHR(hr);

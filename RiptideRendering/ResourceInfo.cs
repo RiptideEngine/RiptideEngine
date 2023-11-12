@@ -1,4 +1,4 @@
-﻿namespace RiptideRendering.ShaderReflection;
+﻿namespace RiptideRendering;
 
 public readonly record struct ConstantBufferInfo(string Name, uint Register, uint Space, uint Size);
 public readonly record struct ReadonlyResourceInfo(string Name, uint Register, uint Space, ResourceType Type);

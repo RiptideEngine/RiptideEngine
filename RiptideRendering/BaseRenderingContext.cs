@@ -1,4 +1,6 @@
-﻿namespace RiptideRendering;
+﻿using RiptideEngine.Core;
+
+namespace RiptideRendering;
 
 public abstract class BaseRenderingContext : IDisposable {
     protected bool disposed;
@@ -8,6 +10,8 @@ public abstract class BaseRenderingContext : IDisposable {
     public abstract BaseCapabilityChecker CapabilityChecker { get; }
 
     public abstract (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget { get; }
+
+    public abstract ILoggingService? Logger { get; set; }
 
     public void ResizeSwapchain(uint width, uint height) {
         ArgumentOutOfRangeException.ThrowIfZero(width, nameof(width));

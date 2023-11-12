@@ -1,4 +1,4 @@
-﻿global using RiptideRendering.ShaderReflection;
+﻿global using RiptideEngine.Core;
 global using RPCSToolkit.Attributes;
 global using Silk.NET.Core.Attributes;
 global using Silk.NET.Core.Native;

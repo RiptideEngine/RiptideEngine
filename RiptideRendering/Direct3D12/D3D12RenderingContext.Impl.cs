@@ -53,6 +53,8 @@ unsafe partial class D3D12RenderingContext {
 
         _deferredDestructor.ReleaseResources(queue.CompletedValue);
 
+        GpuResourceDescHeapPool.FinalizeRetirement(queue.CompletedValue);
+
         _renderingLatencyFences[oldSwapchainIndex] = queue.NextFenceValue - 1;
     }
 }

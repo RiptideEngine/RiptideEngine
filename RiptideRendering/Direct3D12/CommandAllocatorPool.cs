@@ -11,22 +11,21 @@ internal sealed unsafe class CommandAllocatorPool : IDisposable {
         }
     }
 
-    private readonly List<nint> _allocators;
+    private readonly List<nint> _pool;
     private readonly Queue<ReadyAllocator> _readyAllocators;
 
-    private ID3D12Device* pDevice;
+    private D3D12RenderingContext _context;
     private readonly object _lock;
     private readonly CommandListType _type;
 
-    public CommandAllocatorPool(ID3D12Device* pDevice, CommandListType type) {
-        this.pDevice = pDevice;
-        pDevice->AddRef();
-
-        _allocators = new();
+    public CommandAllocatorPool(D3D12RenderingContext context, CommandListType type) {
+        _pool = new();
         _readyAllocators = new();
 
         _lock = new();
         _type = type;
+
+        _context = context;
     }
 
     public ID3D12CommandAllocator* Request(ulong completedFenceValue) {
@@ -41,33 +40,33 @@ internal sealed unsafe class CommandAllocatorPool : IDisposable {
             }
 
             ID3D12CommandAllocator* pOutput = default;
-            int hr = pDevice->CreateCommandAllocator(_type, SilkMarshal.GuidPtrOf<ID3D12CommandAllocator>(), (void**)&pOutput);
+            int hr = _context.Device->CreateCommandAllocator(_type, SilkMarshal.GuidPtrOf<ID3D12CommandAllocator>(), (void**)&pOutput);
             Marshal.ThrowExceptionForHR(hr);
 
-            _allocators.Add((nint)pOutput);
+            _pool.Add((nint)pOutput);
 
-            Console.WriteLine($"Direct3D12 - CommandAllocatorPool: New allocator 0x{(nint)pOutput:X8} created at fence value {completedFenceValue}.");
+            _context.Logger?.Log(LoggingType.Info, $"Direct3D12 - CommandAllocatorPool: New allocator 0x{(nint)pOutput:X8} created at fence value {completedFenceValue}.");
 
             return pOutput;
         }
     }
 
-    public void ReturnAllocator(ulong fenceValue, ID3D12CommandAllocator* allocator) {
+    public void Return(ulong fenceValue, ID3D12CommandAllocator* allocator) {
         lock (_lock) {
             _readyAllocators.Enqueue(new(fenceValue, allocator));
         }
     }
 
     private void Dispose(bool disposing) {
-        if (pDevice == null) return;
+        if (_context == null) return;
 
-        foreach (var ptr in _allocators) {
+        foreach (var ptr in _pool) {
             ((ID3D12CommandAllocator*)ptr)->Release();
         }
-        _allocators.Clear();
+        _pool.Clear();
         _readyAllocators.Clear();
 
-        pDevice->Release(); pDevice = null;
+        _context = null!;
     }
 
     ~CommandAllocatorPool() {

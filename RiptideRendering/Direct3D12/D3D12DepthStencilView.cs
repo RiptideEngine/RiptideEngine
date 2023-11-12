@@ -2,7 +2,7 @@
 
 internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
     public D3D12DepthStencilView(D3D12RenderingContext context, D3D12GpuResource resource, DepthStencilViewDescriptor descriptor) {
-        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Dsv).Allocate(1);
+        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Dsv).Allocate();
         bool convert = D3D12Convert.TryConvert(descriptor.Format, out var format);
         Debug.Assert(convert);
 

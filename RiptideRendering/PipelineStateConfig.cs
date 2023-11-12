@@ -181,4 +181,5 @@ public struct PipelineStateConfig {
     public required BlendingConfig Blending;
     public required RenderTargetFormatConfig RenderTargetFormats;
     public required GraphicsFormat DepthFormat;
+    public required PipelinePrimitiveTopology PrimitiveTopology;
 }

@@ -1,162 +1,84 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
-internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) {
-    public readonly record struct CommitEntry(uint ParameterIndex, uint NumResourceDescriptors, CpuDescriptorHandle StartResourceHandle);
-    private readonly struct CommitVersioning {
-        public readonly List<CommitEntry> Committing;
-        public readonly List<CommitEntry> Committed;
-
-        public CommitVersioning() {
-            Committing = new();
-            Committed = new();
-        }
-
-        public void ClearAllEntries() {
-            Committing.Clear();
-            Committed.Clear();
-        }
-        public void ClearCommittingEntries() {
-            Committing.Clear();
-        }
-        public void MergeCommittingHistory() {
-            foreach (ref readonly var committing in CollectionsMarshal.AsSpan(Committing)) {
-                bool found = false;
-
-                foreach (ref var committed in CollectionsMarshal.AsSpan(Committed)) {
-                    if (committing.ParameterIndex != committed.ParameterIndex) continue;
-
-                    committed = committing;
-                    found = true;
-                    break;
-                }
-
-                if (!found) {
-                    Committed.Add(committing);
-                }
-            }
-        }
-        public void GetNumCommittingDescriptors(out uint numResourceDescriptors, out uint numSamplerDescriptors) {
-            numResourceDescriptors = 0;
-            numSamplerDescriptors = 0;
-
-            foreach (ref readonly var entry in CollectionsMarshal.AsSpan(Committing)) {
-                numResourceDescriptors += entry.NumResourceDescriptors;
-            }
-        }
-    }
-
-    private readonly List<nint> _finishedStagingHeaps = new();
-    private StagingDescriptorHeapLinearAllocator _resourceStagingAllocator;
-
+internal sealed unsafe partial class DescriptorCommitter(D3D12RenderingContext context) {
     private readonly D3D12RenderingContext _context = context;
-    private readonly DynamicRenderingDescriptorHeap _resourceRenderingHeap = new(context, DescriptorHeapType.CbvSrvUav);
+    private ID3D12DescriptorHeap* _boundResourceHeap, _boundSamplerHeap;
 
-    private readonly CommitVersioning _graphicsVersioning = new(), _computeVersioning = new();
+    private uint numResourceDescriptors, numSamplerDescriptors;
 
-    public void ResetGraphics() => _graphicsVersioning.ClearAllEntries();
-    public void ResetCompute() => _computeVersioning.ClearAllEntries();
+    private readonly List<CommitTable> _committedGraphicsTables = [], _committingGraphicsTables = [];
 
-    public void FinalizeResources() {
-        _finishedStagingHeaps.Clear();
-
-        _resourceStagingAllocator.Finish(_context.StagingResourceDescHeapPool);
-        _resourceStagingAllocator = new(_context.StagingResourceDescHeapPool);
-
-        _resourceRenderingHeap.RetireCurrentHeap();
+    public void Reset() {
+        _committedGraphicsTables.Clear();
+        _committingGraphicsTables.Clear();
     }
 
-    public void InitializeGraphicDescriptors(ReadOnlySpan<RootParameter> rootParameters, Shader shader) {
-        D3D12Utils.CountTotalDescriptors((RootParameter*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(rootParameters)), (uint)rootParameters.Length, out uint numResourceDescs, out uint numSamplerDescs);
-        _graphicsVersioning.ClearAllEntries();
+    public void InitializeGraphicDescriptors(D3D12ResourceSignature signature) {
+        ReturnStagingHeaps();
 
-        Debug.Assert(numSamplerDescs == 0, "Sampler binding is not supported yet.");
+        _committedGraphicsTables.Clear();
+        _committingGraphicsTables.Clear();
+        
+        numResourceDescriptors = 0;
+        numSamplerDescriptors = 0;
 
-        if (numResourceDescs != 0) {
-            var resourceStagingHandle = AllocStagingResourceDescriptor(numResourceDescs);
-            Debug.Assert(resourceStagingHandle.Ptr != nuint.MaxValue);
-            var incrementSize = _context.Constants.ResourceViewDescIncrementSize;
+        foreach (var info in signature.TableInfos) {
+            if ((info.Bitmap & (1 << 31)) == 0) {
+                numResourceDescriptors += info.Bitmap;
+            } else {
+                numSamplerDescriptors += info.Bitmap & ~(1 << 31);
+            }
+        }
 
-            for (int p = 0; p < rootParameters.Length; p++) {
-                ref readonly var param = ref rootParameters[p];
-                if (param.ParameterType != RootParameterType.TypeDescriptorTable) continue;
+        if (numResourceDescriptors == 0 && numSamplerDescriptors == 0) return;
 
-                ref readonly var table = ref param.DescriptorTable;
+        var resourceHandle = AllocStagingResourceDescriptor(numResourceDescriptors);
+        var samplerHandle = AllocStagingSamplerDescriptor(numSamplerDescriptors);
 
-                D3D12Utils.CountTotalDescriptors(table.PDescriptorRanges, table.NumDescriptorRanges, out numResourceDescs, out numSamplerDescs);
+        var resourceIncrSize = _context.Constants.ResourceViewDescIncrementSize;
+        var samplerIncrSize = _context.Constants.SamplerDescIncrementSize;
 
-                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, shader, table.PDescriptorRanges, table.NumDescriptorRanges);
-                _graphicsVersioning.Committing.Add(new((uint)p, numResourceDescs, resourceStagingHandle));
-
-                resourceStagingHandle.Offset(numResourceDescs, incrementSize);
+        foreach (var info in signature.TableInfos) {
+            if ((info.Bitmap & (1 << 31)) == 0) {
+                _committingGraphicsTables.Add(new(info.ParameterIndex, info.Bitmap, resourceHandle));
+                resourceHandle.Offset(info.Bitmap, resourceIncrSize);
+            } else {
+                _committingGraphicsTables.Add(new(info.ParameterIndex, info.Bitmap, samplerHandle));
+                samplerHandle.Offset(info.Bitmap & ~(1 << 31), samplerIncrSize);
             }
         }
     }
 
-    public void InitializeComputeBindingSchematic(RootParameter* rootParameters, uint numParameters, Shader shader) {
-        D3D12Utils.CountTotalDescriptors(rootParameters, numParameters, out uint numResourceDescs, out uint numSamplerDescs);
-        _computeVersioning.ClearAllEntries();
-
-        Debug.Assert(numSamplerDescs == 0, "Sampler binding is not supported yet.");
-
-        if (numResourceDescs != 0) {
-            var resourceStagingHandle = AllocStagingResourceDescriptor(numResourceDescs);
-            Debug.Assert(resourceStagingHandle.Ptr != nuint.MaxValue);
-            var incrementSize = _context.Constants.ResourceViewDescIncrementSize;
-
-            for (uint p = 0; p < numParameters; p++) {
-                ref readonly var param = ref rootParameters[p];
-                if (param.ParameterType != RootParameterType.TypeDescriptorTable) continue;
-
-                ref readonly var table = ref param.DescriptorTable;
-
-                D3D12Utils.CountTotalDescriptors(table.PDescriptorRanges, table.NumDescriptorRanges, out numResourceDescs, out numSamplerDescs);
-
-                FillNullDescriptors(resourceStagingHandle, incrementSize, (ID3D12Device*)_context.Device, shader, table.PDescriptorRanges, table.NumDescriptorRanges);
-                _computeVersioning.Committing.Add(new(p, numResourceDescs, resourceStagingHandle));
-
-                resourceStagingHandle.Offset(numResourceDescs, incrementSize);
-            }
-        }
-    }
-
-    private CpuDescriptorHandle AllocStagingResourceDescriptor(uint numDescriptors) {
-        var incrementSize = _context.Constants.ResourceViewDescIncrementSize;
-        if (_resourceStagingAllocator.TryAllocate(numDescriptors, incrementSize, out var handle)) {
-            return handle;
-        }
-
-        _finishedStagingHeaps.Add((nint)_resourceStagingAllocator.DetachHeap());
-
-        _resourceStagingAllocator = new(_context.StagingResourceDescHeapPool, numDescriptors);
-        bool alloc = _resourceStagingAllocator.TryAllocate(numDescriptors, incrementSize, out handle);
-        Debug.Assert(alloc, "Allocation from newly created heap pool failed.");
-
-        return handle;
-    }
-
-    private bool TryGetResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, List<CommitEntry> committingEntries, List<CommitEntry> committedEntries, out CpuDescriptorHandle outputHandle) {
+    private bool TryGetResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, List<CommitTable> committingTables, List<CommitTable> committedTables, out CpuDescriptorHandle outputHandle) {
         uint incrementSize = _context.Constants.ResourceViewDescIncrementSize;
 
-        foreach (ref readonly var committing in CollectionsMarshal.AsSpan(committingEntries)) {
+        foreach (ref readonly var committing in CollectionsMarshal.AsSpan(committingTables)) {
             if (committing.ParameterIndex != rootParameterIndex) continue;
+            if (descriptorOffset >= (committing.Bitmap & ~(1 << 31))) continue;
 
-            Debug.Assert(descriptorOffset < committing.NumResourceDescriptors);
-
-            outputHandle = new() { Ptr = committing.StartResourceHandle.Ptr + descriptorOffset * incrementSize };
+            outputHandle = new() { Ptr = committing.StartHandle.Ptr + descriptorOffset * incrementSize };
             return true;
         }
 
-        foreach (ref readonly var committed in CollectionsMarshal.AsSpan(committedEntries)) {
+        foreach (ref readonly var committed in CollectionsMarshal.AsSpan(committedTables)) {
             if (committed.ParameterIndex != rootParameterIndex) continue;
 
-            Debug.Assert(descriptorOffset < committed.NumResourceDescriptors);
+            uint numDesc = committed.Bitmap & ~(1 << 31);
+            if (descriptorOffset >= numDesc) continue;
 
-            var handle = AllocStagingResourceDescriptor(committed.NumResourceDescriptors);
-            _context.Device->CopyDescriptorsSimple(committed.NumResourceDescriptors, handle, committed.StartResourceHandle, DescriptorHeapType.CbvSrvUav);
+            CpuDescriptorHandle handle;
 
-            committingEntries.Add(new(committed.ParameterIndex, committed.NumResourceDescriptors, handle));
+            if ((committed.Bitmap & (1 << 31)) == 0) {
+                handle = AllocStagingResourceDescriptor(numDesc);
+                _context.Device->CopyDescriptorsSimple(numDesc, handle, committed.StartHandle, DescriptorHeapType.CbvSrvUav);
+            } else {
+                handle = AllocStagingSamplerDescriptor(numDesc);
+                _context.Device->CopyDescriptorsSimple(numDesc, handle, committed.StartHandle, DescriptorHeapType.Sampler);
+            }
 
             outputHandle = new() { Ptr = handle.Ptr + descriptorOffset * incrementSize };
+            committingTables.Add(new(committed.ParameterIndex, committed.Bitmap, handle));
+
             return true;
         }
 
@@ -164,62 +86,321 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
         return false;
     }
 
-    public bool TryGetGraphicsResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, out CpuDescriptorHandle outputHandle) => TryGetResourceDescriptor(rootParameterIndex, descriptorOffset, _graphicsVersioning.Committing, _graphicsVersioning.Committed, out outputHandle);
-    public bool TryGetComputeResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, out CpuDescriptorHandle outputHandle) => TryGetResourceDescriptor(rootParameterIndex, descriptorOffset, _computeVersioning.Committing, _computeVersioning.Committed, out outputHandle);
+    public bool TryGetGraphicsResourceDescriptor(uint rootParameterIndex, uint descriptorOffset, out CpuDescriptorHandle outputHandle) => TryGetResourceDescriptor(rootParameterIndex, descriptorOffset, _committingGraphicsTables, _committedGraphicsTables, out outputHandle);
 
-    private void Commit(ID3D12GraphicsCommandList* pCommandList, CommitVersioning versioning, delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void> descriptorTableSetter) {
-        versioning.GetNumCommittingDescriptors(out uint numCommittingResourceDescs, out uint numCommittingSamplerDescs);
-        Debug.Assert(numCommittingSamplerDescs == 0, "Sampler binding is not supported yet.");
+    private void Commit(ID3D12GraphicsCommandList* pCommandList, List<CommitTable> committingTables, List<CommitTable> committedTables, delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void> setOperation) {
+        if (numResourceDescriptors == 0 && numSamplerDescriptors == 0) return;
 
-        if (numCommittingResourceDescs != 0) {
-            var incrementSize = _context.Constants.ResourceViewDescIncrementSize;
-            var device = _context.Device;
+        var device = _context.Device;
 
-            if (_resourceRenderingHeap.CurrentHeap == null) {
-                var renderingHandle = _resourceRenderingHeap.Allocate(numCommittingResourceDescs);
+        var resourceIncrementSize = _context.Constants.ResourceViewDescIncrementSize;
+        var samplerIncrementSize = _context.Constants.SamplerDescIncrementSize;
 
-                var heap = _resourceRenderingHeap.CurrentHeap;
-                pCommandList->SetDescriptorHeaps(1, &heap);
+        CpuDescriptorHandle cpuResourceHandle, cpuSamplerHandle;
+        GpuDescriptorHandle gpuResourceHandle, gpuSamplerHandle;
 
-                foreach (ref readonly var entry in CollectionsMarshal.AsSpan(versioning.Committing)) {
-                    device->CopyDescriptorsSimple(entry.NumResourceDescriptors, renderingHandle.Cpu, entry.StartResourceHandle, DescriptorHeapType.CbvSrvUav);
-                    descriptorTableSetter(pCommandList, entry.ParameterIndex, renderingHandle.Gpu);
+        ID3D12DescriptorHeap** ppHeaps = stackalloc ID3D12DescriptorHeap*[2];
+        uint numHeaps = 0;
 
-                    var offset = incrementSize * entry.NumResourceDescriptors;
-                    renderingHandle = new(renderingHandle.Cpu.Ptr + offset, renderingHandle.Gpu.Ptr + offset);
+        if (committedTables.Count == 0) {
+            // First time committing.
+            lock (_context.GpuDescriptorSuballocationLock) {
+                if (numResourceDescriptors != 0) {
+                    var heap = _context.CurrentResourceGpuDescHeap;
+
+                    if (!heap.TryAllocate(numResourceDescriptors, out cpuResourceHandle, out gpuResourceHandle)) {
+                        var pool = _context.GpuResourceDescHeapPool;
+
+                        heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+                        heap.Request(pool, numResourceDescriptors);
+
+                        bool suballocate = heap.TryAllocate(numResourceDescriptors, out cpuResourceHandle, out gpuResourceHandle);
+                        Debug.Assert(suballocate);
+                    }
+
+                    ppHeaps[numHeaps++] = _boundResourceHeap = heap.Heap;
+                } else {
+                    cpuResourceHandle = D3D12Helper.UnknownCpuHandle;
+                    gpuResourceHandle = D3D12Helper.UnknownGpuHandle;
                 }
 
-                versioning.Committed.AddRange(versioning.Committing);
-            } else {
-                if (_resourceRenderingHeap.HasEnoughDescriptor(numCommittingResourceDescs)) {
-                    var renderingHandle = _resourceRenderingHeap.Allocate(numCommittingResourceDescs);
+                if (numSamplerDescriptors != 0) {
+                    var heap = _context.CurrentSamplerGpuDescHeap;
 
-                    var heap = _resourceRenderingHeap.CurrentHeap;
-                    pCommandList->SetDescriptorHeaps(1, &heap);
+                    if (!heap.TryAllocate(numSamplerDescriptors, out cpuSamplerHandle, out gpuSamplerHandle)) {
+                        var pool = _context.GpuSamplerDescHeapPool;
 
-                    foreach (ref readonly var entry in CollectionsMarshal.AsSpan(versioning.Committing)) {
-                        device->CopyDescriptorsSimple(entry.NumResourceDescriptors, renderingHandle.Cpu, entry.StartResourceHandle, DescriptorHeapType.CbvSrvUav);
-                        descriptorTableSetter(pCommandList, entry.ParameterIndex, renderingHandle.Gpu);
+                        heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+                        heap.Request(pool, numSamplerDescriptors);
 
-                        var offset = incrementSize * entry.NumResourceDescriptors;
-                        renderingHandle = new(renderingHandle.Cpu.Ptr + offset, renderingHandle.Gpu.Ptr + offset);
+                        bool suballocate = heap.TryAllocate(numSamplerDescriptors, out cpuSamplerHandle, out gpuSamplerHandle);
+                        Debug.Assert(suballocate);
+                    }
+
+                    ppHeaps[numHeaps++] = _boundSamplerHeap = heap.Heap;
+                } else {
+                    cpuSamplerHandle = D3D12Helper.UnknownCpuHandle;
+                    gpuSamplerHandle = D3D12Helper.UnknownGpuHandle;
+                }
+            }
+
+            pCommandList->SetDescriptorHeaps(numHeaps, ppHeaps);
+
+            foreach (var committing in committingTables) {
+                uint numDescriptors = committing.Bitmap & ~(1U << 31);
+
+                if ((committing.Bitmap & (1 << 31)) == 0) {
+                    device->CopyDescriptorsSimple(numDescriptors, cpuResourceHandle, committing.StartHandle, DescriptorHeapType.CbvSrvUav);
+                    setOperation(pCommandList, committing.ParameterIndex, gpuResourceHandle);
+
+                    cpuResourceHandle.Offset(numDescriptors, resourceIncrementSize);
+                    gpuResourceHandle.Offset(numDescriptors, resourceIncrementSize);
+                } else {
+                    device->CopyDescriptorsSimple(numDescriptors, cpuSamplerHandle, committing.StartHandle, DescriptorHeapType.Sampler);
+                    setOperation(pCommandList, committing.ParameterIndex, gpuSamplerHandle);
+
+                    cpuSamplerHandle.Offset(numDescriptors, resourceIncrementSize);
+                    gpuSamplerHandle.Offset(numDescriptors, resourceIncrementSize);
+                }
+            }
+
+            committedTables.AddRange(committingTables);
+            committingTables.Clear();
+        } else {
+            // Separate different cases for easier implementation and prevent me going crazy.
+
+            if (numResourceDescriptors != 0 && numSamplerDescriptors == 0) {
+                uint numCommittingDescs = 0;
+                foreach (var table in committingTables) {
+                    numCommittingDescs += table.Bitmap;
+                }
+
+                if (numCommittingDescs == 0) return;
+
+                bool rebindTable = false;
+
+                lock (_context.GpuDescriptorSuballocationLock) {
+                    var heap = _context.CurrentResourceGpuDescHeap;
+
+                    if (!heap.TryAllocate(numCommittingDescs, out cpuResourceHandle, out gpuResourceHandle)) {
+                        var pool = _context.GpuResourceDescHeapPool;
+
+                        heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+                        heap.Request(pool, numResourceDescriptors);
+
+                        bool suballocate = heap.TryAllocate(numResourceDescriptors, out cpuResourceHandle, out gpuResourceHandle);
+                        Debug.Assert(suballocate);
+                    }
+
+                    if (_boundResourceHeap != heap.Heap) {
+                        rebindTable = true;
+
+                        var pHeap = heap.Heap;
+                        pCommandList->SetDescriptorHeaps(1, &pHeap);
+
+                        _boundResourceHeap = heap.Heap;
                     }
                 }
 
-                versioning.MergeCommittingHistory();
+                if (rebindTable) {
+                    foreach (var committed in committedTables) {
+                        uint numDescriptor = committed.Bitmap;
+
+                        bool foundCommitting = false;
+                        foreach (var committing in committingTables) {
+                            if (committing.ParameterIndex != committed.ParameterIndex) continue;
+
+                            Debug.Assert(numDescriptor == committing.Bitmap);
+
+                            device->CopyDescriptorsSimple(numDescriptor, cpuResourceHandle, committing.StartHandle, DescriptorHeapType.CbvSrvUav);
+                            setOperation(pCommandList, committed.ParameterIndex, gpuResourceHandle);
+
+                            foundCommitting = true;
+                            break;
+                        }
+
+                        if (!foundCommitting) {
+                            device->CopyDescriptorsSimple(numDescriptor, cpuResourceHandle, committed.StartHandle, DescriptorHeapType.CbvSrvUav);
+                            setOperation(pCommandList, committed.ParameterIndex, gpuResourceHandle);
+                        }
+
+                        cpuResourceHandle.Offset(numDescriptor, resourceIncrementSize);
+                        gpuResourceHandle.Offset(numDescriptor, resourceIncrementSize);
+                    }
+                } else {
+                    foreach (var committing in committingTables) {
+                        uint numDescriptor = committing.Bitmap;
+
+                        Debug.Assert(numDescriptor != 0);
+
+                        device->CopyDescriptorsSimple(numDescriptor, cpuResourceHandle, committing.StartHandle, DescriptorHeapType.CbvSrvUav);
+                        setOperation(pCommandList, committing.ParameterIndex, gpuResourceHandle);
+
+                        cpuResourceHandle.Offset(numDescriptor, resourceIncrementSize);
+                        gpuResourceHandle.Offset(numDescriptor, resourceIncrementSize);
+                    }
+                }
+            } else if (numResourceDescriptors == 0 && numSamplerDescriptors != 0) {
+                throw new NotImplementedException("TODO");
+            } else {
+                throw new NotImplementedException("TODO");
             }
 
-            versioning.ClearCommittingEntries();
+            MergeCommittingHistory(committingTables, committedTables);
+
+            //uint numCommittingResourceDescs = 0, numCommittingSamplerDescs = 0;
+            //foreach (var entry in committingTables) {
+            //    numCommittingResourceDescs += entry.NumResourceDescriptors;
+            //    numCommittingSamplerDescs += entry.NumSamplerDescriptors;
+            //}
+
+            //lock (_context.GpuDescriptorSuballocationLock) {
+            //    bool reallocResource = false;
+            //    bool reallocSampler = false;
+
+            //    if (numCommittingResourceDescs != 0) {
+            //        var heap = _context.CurrentResourceGpuDescHeap;
+
+            //        if (!heap.TryAllocate(numCommittingResourceDescs, out cpuResourceHandle, out gpuResourceHandle)) {
+            //            var pool = _context.GpuResourceDescHeapPool;
+
+            //            heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+            //            heap.Request(pool, numCommittingResourceDescs);
+
+            //            bool suballocate = heap.TryAllocate(numResourceDescriptors, out cpuResourceHandle, out gpuResourceHandle);
+            //            Debug.Assert(suballocate);
+
+            //            reallocResource = true;
+            //        }
+            //    } else {
+            //        cpuResourceHandle = D3D12Helper.UnknownCpuHandle;
+            //        gpuResourceHandle = D3D12Helper.UnknownGpuHandle;
+            //    }
+
+            //    if (numCommittingSamplerDescs != 0) {
+            //        var heap = _context.CurrentResourceGpuDescHeap;
+
+            //        if (!heap.TryAllocate(numCommittingSamplerDescs, out cpuSamplerHandle, out gpuSamplerHandle)) {
+            //            var pool = _context.GpuResourceDescHeapPool;
+
+            //            heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+            //            heap.Request(pool, numCommittingSamplerDescs);
+
+            //            bool suballocate = heap.TryAllocate(numSamplerDescriptors, out cpuSamplerHandle, out gpuSamplerHandle);
+            //            Debug.Assert(suballocate);
+
+            //            reallocSampler = true;
+            //        }
+            //    } else {
+            //        cpuSamplerHandle = D3D12Helper.UnknownCpuHandle;
+            //        gpuSamplerHandle = D3D12Helper.UnknownGpuHandle;
+            //    }
+
+            //    if (reallocResource) {
+            //        CpuDescriptorHandle handle = cpuResourceHandle;
+
+            //        foreach (var committed in committedTables) {
+            //            if (committed.NumResourceDescriptors == 0) continue;
+                        
+            //            device->CopyDescriptorsSimple(committed.NumResourceDescriptors, handle, committed.StartResourceHandle, DescriptorHeapType.CbvSrvUav);
+            //            handle.Offset(committed.NumResourceDescriptors, resourceIncrementSize);
+            //        }
+            //    }
+
+            //    if (reallocSampler) {
+            //        CpuDescriptorHandle handle = cpuSamplerHandle;
+
+            //        foreach (var committed in committedTables) {
+            //            if (committed.NumSamplerDescriptors == 0) continue;
+
+            //            device->CopyDescriptorsSimple(committed.NumSamplerDescriptors, handle, committed.StartSamplerHandle, DescriptorHeapType.Sampler);
+            //            handle.Offset(committed.NumSamplerDescriptors, resourceIncrementSize);
+            //        }
+            //    }
+
+            //    if (reallocResource || reallocSampler) {
+
+            //    }
+            //}
+
+            //Console.WriteLine(committingTables[0].ParameterIndex);
         }
+
+        //lock (_context.GpuDescriptorSuballocationLock) {
+        //    CpuDescriptorHandle cpuResourceHandle, cpuSamplerHandle;
+        //    GpuDescriptorHandle gpuResourceHandle, gpuSamplerHandle;
+
+        //    if (numCommittingResourceDescs != 0) {
+        //        var heap = _context.CurrentResourceGpuDescHeap;
+
+        //        if (heap.TryAllocate(numCommittingResourceDescs, out cpuResourceHandle, out gpuResourceHandle)) {
+        //            foreach (var table in committingTables) {
+        //                device->CopyDescriptorsSimple(table.NumResourceDescriptors, cpuResourceHandle, table.StartResourceHandle, DescriptorHeapType.CbvSrvUav);
+        //                cpuResourceHandle.Offset(table.NumResourceDescriptors, resourceIncrementSize);
+        //            }
+        //        } else {
+        //            var pool = _context.GpuResourceDescHeapPool;
+
+        //            heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+        //            heap.Request(pool, numResourceDescriptors);
+
+        //            bool suballocate = heap.TryAllocate(numCommittingResourceDescs, out cpuResourceHandle, out gpuResourceHandle);
+        //            Debug.Assert(suballocate);
+        //        }
+        //    }
+
+        //    //if (numCommittingSamplerDescs != 0) {
+        //    //    var heap = _context.CurrentSamplerGpuDescHeap;
+
+        //    //    if (!heap.TryAllocate(numCommittingResourceDescs, out cpuSamplerHandle, out gpuSamplerHandle)) {
+        //    //        var pool = _context.GpuSamplerDescHeapPool;
+
+        //    //        heap.Retire(pool, _context.RenderingQueue.NextFenceValue - 1);
+        //    //        heap.Request(pool, numResourceDescriptors);
+
+        //    //        bool suballocate = heap.TryAllocate(numCommittingResourceDescs, out cpuSamplerHandle, out gpuSamplerHandle);
+        //    //        Debug.Assert(suballocate);
+        //    //    }
+        //    //}
+
+        //    //ID3D12DescriptorHeap** ppHeaps = stackalloc ID3D12DescriptorHeap*[2];
+        //    //uint numHeaps = 0;
+        //    //bool resourceHeapChanged = false, samplerHeapChanged = false;
+
+        //    //if (numResourceDescriptors != 0 && _boundResourceHeap != _context.CurrentResourceGpuDescHeap.Heap) {
+        //    //    ppHeaps[numHeaps++] = _context.CurrentResourceGpuDescHeap.Heap;
+        //    //    resourceHeapChanged = true;
+        //    //}
+
+        //    //if (numSamplerDescriptors != 0 && _boundSamplerHeap != _context.CurrentSamplerGpuDescHeap.Heap) {
+        //    //    ppHeaps[numHeaps++] = _context.CurrentSamplerGpuDescHeap.Heap;
+        //    //    samplerHeapChanged = true;
+        //    //}
+
+        //    //if (numHeaps != 0) {
+        //    //    pCommandList->SetDescriptorHeaps(numHeaps, ppHeaps);
+
+        //    //    _boundResourceHeap = _context.CurrentResourceGpuDescHeap.Heap;
+        //    //    _boundSamplerHeap = _context.CurrentSamplerGpuDescHeap.Heap;
+        //    //}
+
+        //    //if (resourceHeapChanged) {
+
+        //    //} else {
+        //    //    foreach (var table in committingTables) {
+
+        //    //    }
+        //    //}
+        //}
     }
 
     public void CommitGraphics(ID3D12GraphicsCommandList* pCommandList) {
-        Commit(pCommandList, _graphicsVersioning, (delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void>)pCommandList->LpVtbl[32]);
+        Commit(pCommandList, _committingGraphicsTables, _committedGraphicsTables, (delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void>)pCommandList->LpVtbl[32]);
     }
 
-    public void CommitCompute(ID3D12GraphicsCommandList* pCommandList) {
-        Commit(pCommandList, _computeVersioning, (delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void>)pCommandList->LpVtbl[31]);
-    }
+    //public void CommitCompute(ID3D12GraphicsCommandList* pCommandList) {
+    //    Commit(pCommandList, _computeVersioning, (delegate* unmanaged[Stdcall]<ID3D12GraphicsCommandList*, uint, GpuDescriptorHandle, void>)pCommandList->LpVtbl[31]);
+    //}
 
     private static void FillNullDescriptors(CpuDescriptorHandle startHandle, uint incrementSize, ID3D12Device* pDevice, Shader shader, DescriptorRange* pRanges, uint numRanges) {
         nuint handle = startHandle.Ptr;
@@ -396,13 +577,29 @@ internal sealed unsafe class DescriptorCommitter(D3D12RenderingContext context) 
     }
 
     public void CleanUp(ulong fenceValue) {
-        _resourceRenderingHeap.CleanUp(fenceValue);
     }
 
     public void Dispose(ulong fenceValue) {
-        _resourceStagingAllocator.Finish(_context.StagingResourceDescHeapPool);
-        _resourceStagingAllocator = default;
-
-        _resourceRenderingHeap.CleanUp(fenceValue);
+        ReturnStagingHeaps();
     }
+
+    private static void MergeCommittingHistory(List<CommitTable> committingEntries, List<CommitTable> committedEntries) {
+        foreach (ref readonly var committingEntry in CollectionsMarshal.AsSpan(committingEntries)) {
+            bool found = false;
+
+            foreach (ref var committedEntry in CollectionsMarshal.AsSpan(committedEntries)) {
+                if (committingEntry.ParameterIndex != committedEntry.ParameterIndex) continue;
+
+                committedEntry = committingEntry;
+                found = true;
+                break;
+            }
+
+            if (!found) {
+                committedEntries.Add(committingEntry);
+            }
+        }
+    }
+
+    private readonly record struct CommitTable(uint ParameterIndex, uint Bitmap, CpuDescriptorHandle StartHandle);
 }

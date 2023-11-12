@@ -5,7 +5,7 @@ internal sealed unsafe class D3D12ResourceView : ResourceView {
         bool convert = D3D12Convert.TryConvert(descriptor.Format, out var format);
         Debug.Assert(convert);
 
-        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.CbvSrvUav).Allocate(1);
+        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.CbvSrvUav).Allocate();
 
         ShaderResourceViewDesc desc = new() {
             Shader4ComponentMapping = D3D12Helper.DefaultShader4ComponentMapping,

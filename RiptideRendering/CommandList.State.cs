@@ -24,5 +24,13 @@ public struct UnorderedAccessResourceBinding {
 
 unsafe partial class CommandList {
     public abstract void SetIndexBuffer(NativeResourceHandle buffer, IndexFormat format, uint offset);
-    public abstract void SetGraphicsPipeline(PipelineState shader, ResourceSignature pipelineResource, ReadOnlySpan<ConstantBufferBinding> constantBuffers, ReadOnlySpan<ReadonlyResourceBinding> readonlyResources, ReadOnlySpan<UnorderedAccessResourceBinding> unorderedAccesses);
+
+    public abstract void SetPrimitiveTopology(RenderingPrimitiveTopology topology);
+
+    public abstract void SetPipelineState(PipelineState pipelineState);
+    public abstract void SetGraphicsResourceSignature(ResourceSignature signature);
+
+    public abstract void SetGraphicsConstants(uint parameterIndex, ReadOnlySpan<uint> constants, uint offset);
+    public abstract void SetGraphicsConstantBuffer(uint tableIndex, uint tableOffset, NativeResourceHandle resource, uint offset);
+    public abstract void SetGraphicsResourceView(uint tableIndex, uint tableOffset, NativeResourceView view);
 }

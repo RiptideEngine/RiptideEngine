@@ -21,15 +21,6 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
     public IDXGIFactory2* DxgiFactory => pFactory;
     internal CommandQueue RenderingQueue { get; private set; }
 
-    internal CommandListPool CommandListPool { get; private set; }
-    internal UploadBufferStorage UploadBufferStorage { get; private set; }
-    internal RootSignatureStorage RootSigStorage { get; private set; }
-
-    private ResourceDescriptorAllocator[] _resDescAllocs;
-
-    internal StagingDescriptorHeapPool StagingResourceDescHeapPool { get; private set; }
-    internal RenderingDescriptorHeapPool RenderingResourceDescHeapPool { get; private set; }
-
     private readonly DeferredDestructor _deferredDestructor;
 
     public override RenderingAPI RenderingAPI => RenderingAPI.Direct3D12;
@@ -37,6 +28,8 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
     public override BaseCapabilityChecker CapabilityChecker => _capCheck;
 
     public override (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget => Display.CurrentSwapchainRenderTarget;
+
+    public override ILoggingService? Logger { get; set; }
 
     public D3D12RenderingContext(ContextOptions options) {
         int hr;
@@ -79,25 +72,31 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
             pFactory.Handle = pOutputFactory.Detach();
 
             if (debug) {
-                Debugger = new((ID3D12Device*)pDevice.Handle);
+                Debugger = new(this);
             }
 
-            RenderingQueue = new((ID3D12Device*)pDevice.Handle, CommandListType.Direct);
+            RenderingQueue = new(this, CommandListType.Direct);
             _factory = new(this);
 
             RootSigStorage = new(this);
-            UploadBufferStorage = new(this);
+            UploadBufferPool = new(this);
 
-            StagingResourceDescHeapPool = new((ID3D12Device*)pDevice.Handle, DescriptorHeapType.CbvSrvUav);
-            RenderingResourceDescHeapPool = new(this, DescriptorHeapType.CbvSrvUav);
+            StagingResourceHeapPool = new(this, DescriptorHeapType.CbvSrvUav);
+            StagingSamplerHeapPool = new(this, DescriptorHeapType.Sampler);
+
+            GpuResourceDescHeapPool = new(this, DescriptorHeapType.CbvSrvUav, 8192);
+            CurrentResourceGpuDescHeap = new(GpuResourceDescHeapPool, _devdepConsts.ResourceViewDescIncrementSize);
+
+            GpuSamplerDescHeapPool = new(this, DescriptorHeapType.Sampler, 1024);
+            CurrentSamplerGpuDescHeap = new(GpuSamplerDescHeapPool, _devdepConsts.SamplerDescIncrementSize);
 
             CommandListPool = new(this);
 
-            _resDescAllocs = [
-                new((ID3D12Device*)pDevice.Handle, DescriptorHeapType.CbvSrvUav),
-                new((ID3D12Device*)pDevice.Handle, DescriptorHeapType.Sampler),
-                new((ID3D12Device*)pDevice.Handle, DescriptorHeapType.Rtv),
-                new((ID3D12Device*)pDevice.Handle, DescriptorHeapType.Dsv),
+            _resourceDescAlloc = [
+                new(this, DescriptorHeapType.CbvSrvUav),
+                new(this, DescriptorHeapType.Sampler),
+                new(this, DescriptorHeapType.Rtv),
+                new(this, DescriptorHeapType.Dsv),
             ];
 
             Display = new(this, options.OutputWindow);
@@ -129,15 +128,22 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
             CommandListPool?.Dispose(); CommandListPool = null!;
             RootSigStorage?.Dispose(); RootSigStorage = null!;
             Display?.Dispose(); Display = null!;
-            UploadBufferStorage?.Dispose(); UploadBufferStorage = null!;
+            UploadBufferPool?.Dispose(); UploadBufferPool = null!;
             RenderingQueue?.Dispose(); RenderingQueue = null!;
-            RenderingResourceDescHeapPool?.Dispose(); RenderingResourceDescHeapPool = null!;
-            StagingResourceDescHeapPool?.Dispose(); StagingResourceDescHeapPool = null!;
+
+            GpuResourceDescHeapPool?.Dispose(); GpuResourceDescHeapPool = null!;
+            CurrentResourceGpuDescHeap = null!;
+
+            GpuSamplerDescHeapPool?.Dispose(); GpuSamplerDescHeapPool = null!;
+            CurrentSamplerGpuDescHeap = null!;
+
+            StagingResourceHeapPool?.Dispose(); StagingResourceHeapPool = null!;
+            StagingSamplerHeapPool?.Dispose(); StagingSamplerHeapPool = null!;
 
             _deferredDestructor?.Dispose();
 
-            Array.ForEach(_resDescAllocs ?? [], x => x.Dispose());
-            _resDescAllocs = [];
+            foreach (var allocator in _resourceDescAlloc) allocator.Dispose();
+            _resourceDescAlloc = [];
 
             if (Debugger != null) {
                 Debugger.ReportLiveD3D12Objects();
@@ -161,5 +167,5 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ResourceDescriptorAllocator GetResourceDescriptorAllocator(DescriptorHeapType type) => _resDescAllocs[(int)type];
+    internal CpuDescriptorAllocator GetResourceDescriptorAllocator(DescriptorHeapType type) => _resourceDescAlloc[(int)type];
 }

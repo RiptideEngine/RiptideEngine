@@ -9,7 +9,7 @@ internal unsafe partial class D3D12CommandList : CommandList {
     private ID3D12CommandAllocator* pAllocator;
     private readonly D3D12RenderingContext _context;
 
-    private readonly DynamicUploadBuffer _uploadBuffer;
+    private readonly SuballocateUploadBuffer _uploadBuffer;
     private readonly DescriptorCommitter _descCommitter;
 
     public ID3D12GraphicsCommandList* CommandList => pCommandList;
@@ -53,7 +53,7 @@ internal unsafe partial class D3D12CommandList : CommandList {
 
         _descCommitter = new(context);
 
-        _uploadBuffer = new(context.UploadBufferStorage);
+        _uploadBuffer = new(context.UploadBufferPool);
 
         _refcount = 1;
     }

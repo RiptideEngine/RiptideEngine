@@ -27,7 +27,7 @@ public abstract class BaseCapabilityChecker {
     public abstract bool UseRootSignature { get; }
 
     /// <summary>
-    /// Maximum dimension of every Texture2D. <br/>
+    /// Maximum dimension of every Texture2D.<br/>
     /// Note: Hardcoded to 4096 for the time being.
     /// </summary>
     public const ushort MaximumTexture2DDimension = 4096;
