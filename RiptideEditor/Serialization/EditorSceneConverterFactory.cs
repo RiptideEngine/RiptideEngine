@@ -113,8 +113,6 @@ internal sealed class EditorSceneConverterFactory : JsonConverterFactory {
     }
     private sealed class AssetReferenceConverter : JsonConverter<IResourceAsset> {
         public override IResourceAsset? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
-            Console.WriteLine("AssetReferenceConverter.Read()");
-            
             switch (reader.TokenType) {
                 case JsonTokenType.Null: return null;
                 case JsonTokenType.StartObject:

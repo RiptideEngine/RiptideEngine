@@ -25,6 +25,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RenderingExperiment", "Rend
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Laboratory", "Laboratory", "{C457B1CE-D308-441B-8148-BCFB764F0F87}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Low Level", "Low Level", "{459619CB-21B5-437B-86A3-CEE66943C946}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Riptide.TextEngine", "Riptide.TextEngine\Riptide.TextEngine.csproj", "{15D45E7F-6204-4A2C-BDE8-B774CE48F798}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,12 +75,17 @@ Global
 		{49D73A6E-9F1A-441A-A138-587965D1B981}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{49D73A6E-9F1A-441A-A138-587965D1B981}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{49D73A6E-9F1A-441A-A138-587965D1B981}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15D45E7F-6204-4A2C-BDE8-B774CE48F798}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15D45E7F-6204-4A2C-BDE8-B774CE48F798}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15D45E7F-6204-4A2C-BDE8-B774CE48F798}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15D45E7F-6204-4A2C-BDE8-B774CE48F798}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{49D73A6E-9F1A-441A-A138-587965D1B981} = {C457B1CE-D308-441B-8148-BCFB764F0F87}
+		{15D45E7F-6204-4A2C-BDE8-B774CE48F798} = {459619CB-21B5-437B-86A3-CEE66943C946}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {C3FE0A5F-E092-40B5-B030-02652A84AB3A}

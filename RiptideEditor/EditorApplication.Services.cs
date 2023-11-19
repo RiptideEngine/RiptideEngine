@@ -5,7 +5,7 @@ partial class EditorApplication {
 
     private static void CreateSystemServices(RiptideServices services) {
         var logger = services.CreateService<ILoggingService, LoggingService>();
-        services.CreateService<IInputService, InputService, IWindow>(MainWindow);
+        services.CreateService<IInputService, SilkInputService, IWindow>(MainWindow);
         _renderingContext = services.CreateService<IRenderingService, RenderingService, ContextOptions>(new(RenderingAPI.Direct3D12, MainWindow)).Context;
         _renderingContext.Logger = logger;
     }

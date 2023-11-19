@@ -4,7 +4,7 @@ public interface IRenderingService : IRiptideService {
     BaseRenderingContext Context { get; }
 }
 
-internal class RenderingService : IRenderingService {
+public sealed class RenderingService : IRenderingService {
     public BaseRenderingContext Context { get; }
 
     public RenderingService(ContextOptions options) {

@@ -7,11 +7,11 @@ internal sealed unsafe class D3D12Factory : BaseFactory {
         _context = context;
     }
 
-    public override PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature pipelineResource, in PipelineStateConfig config) {
+    public override PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature pipelineResource, in PipelineStateDescriptor descriptor) {
         if (shader is not D3D12GraphicalShader d3d12shader) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GraphicalShader", "Direct3D12's GraphicalShader"), nameof(shader));
         if (pipelineResource is not D3D12ResourceSignature d3d12pr) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "PipelineResource", "Direct3D12's PipelineResource"), nameof(pipelineResource));
 
-        return new D3D12PipelineState(_context, d3d12shader, d3d12pr, config);
+        return new D3D12PipelineState(_context, d3d12shader, d3d12pr, descriptor);
     }
 
     protected override ResourceSignature CreateResourceSignatureImpl(ResourceSignatureDescriptor descriptor) {
@@ -26,8 +26,8 @@ internal sealed unsafe class D3D12Factory : BaseFactory {
         return _context.CommandListPool.Request();
     }
 
-    protected override GpuResource CreateResourceImpl(in ResourceDescriptor descriptor, ResourceStates initialStates) {
-        return new D3D12GpuResource(_context, descriptor, initialStates);
+    protected override GpuResource CreateResourceImpl(in ResourceDescriptor descriptor) {
+        return new D3D12GpuResource(_context, descriptor);
     }
 
     public override ResourceView CreateResourceView(GpuResource resource, ResourceViewDescriptor descriptor) {

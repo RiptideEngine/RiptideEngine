@@ -21,7 +21,7 @@ internal sealed class ComponentPolymorphismConverter : JsonConverter<Component> 
         reader.Read();
         var componentTypeGuid = reader.GetGuid();
 
-        if (!RuntimeFoundation.ComponentDatabase.TryGetComponentType(componentTypeGuid, out var componentType)) return null;
+        if (!Components.Database.TryGetComponentType(componentTypeGuid, out var componentType)) return null;
 
         reader.Read();
         if (!reader.ValueTextEquals("$values")) throw new JsonException("Expected value metadata '$values' after type discriminator.");
@@ -38,7 +38,7 @@ internal sealed class ComponentPolymorphismConverter : JsonConverter<Component> 
     public sealed override void Write(Utf8JsonWriter writer, Component value, JsonSerializerOptions options) {
         writer.WriteStartObject();
 
-        if (RuntimeFoundation.ComponentDatabase.TryGetComponentGuid(value.GetType(), out var guid)) {
+        if (Components.Database.TryGetComponentGuid(value.GetType(), out var guid)) {
             writer.WriteString("$type"u8, guid);
 
             writer.WritePropertyName("$values"u8);

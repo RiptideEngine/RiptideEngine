@@ -7,7 +7,7 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
 
         var cmdList = factory.CreateCommandList();
 
-        var screenSize = Screen.Size;
+        // var screenSize = Screen.Size;
 
         {
             if (info.OutputTarget.UnderlyingDepthView is { } view) {
@@ -22,16 +22,18 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
 
             foreach (var camera in info.OutputCameras) {                
                 var vp = camera.Viewport;
-                cmdList.SetViewport(Rectangle.Create(screenSize * vp.GetPosition(), screenSize * vp.GetSize()));
+                cmdList.SetViewport(new(0, 0, 1, 1));
+                // cmdList.SetViewport(Rectangle.Create(screenSize * vp.GetPosition(), screenSize * vp.GetSize()));
 
                 var sr = camera.ScissorRect;
-                cmdList.SetScissorRect(Bound2D.Create(screenSize * sr.GetMinimum(), screenSize * sr.GetMaximum()).ToInt32());
+                cmdList.SetScissorRect(new(0, 0, 1920, 1080));
+                // cmdList.SetScissorRect(Bound2D.Create(screenSize * sr.GetMinimum(), screenSize * sr.GetMaximum()).ToInt32());
 
-                foreach (var scene in RuntimeFoundation.SceneGraphService.Context.EnumerateScenes()) {
-                    foreach (var rootEntity in scene.EnumerateRootEntities()) {
-                        RenderRendererComponents(rootEntity, cmdList);
-                    }
-                }
+                //foreach (var scene in RuntimeFoundation.SceneGraphService.Context.EnumerateScenes()) {
+                //    foreach (var rootEntity in scene.EnumerateRootEntities()) {
+                //        RenderRendererComponents(rootEntity, cmdList);
+                //    }
+                //}
             }
         } else {
             cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, Color.Black);

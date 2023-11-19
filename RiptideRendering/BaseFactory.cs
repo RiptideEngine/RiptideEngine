@@ -48,16 +48,14 @@ public abstract class BaseFactory {
 
     public abstract GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode);
 
-    public abstract PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature resourceSignature, in PipelineStateConfig config);
+    public abstract PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature resourceSignature, in PipelineStateDescriptor descriptor);
 
     public abstract CommandList CreateCommandList();
 
-    public GpuResource CreateResource(in ResourceDescriptor descriptor, ResourceStates initialStates = ResourceStates.Common) {
-        // if (descriptor.Dimension == ResourceDimension.Unknown) throw new ArgumentOutOfRangeException(nameof(descriptor), ExceptionMessages.FailedToCreateBuffer_ZeroSize);
-
-        return CreateResourceImpl(descriptor, initialStates);
+    public GpuResource CreateResource(in ResourceDescriptor descriptor) {
+        return CreateResourceImpl(descriptor);
     }
-    protected abstract GpuResource CreateResourceImpl(in ResourceDescriptor descriptor, ResourceStates initialStates);
+    protected abstract GpuResource CreateResourceImpl(in ResourceDescriptor descriptor);
 
     public abstract ResourceView CreateResourceView(GpuResource texture, ResourceViewDescriptor descriptor);
     public abstract RenderTargetView CreateRenderTargetView(GpuResource texture, RenderTargetViewDescriptor descriptor);

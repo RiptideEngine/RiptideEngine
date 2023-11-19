@@ -41,17 +41,9 @@ unsafe partial class AssetBrowserWindow {
         int columnAmount = int.Max(1, (int)float.Floor(availSize / cellWidth));
 
         if (ImGui.BeginTable("Listing Table", columnAmount, ImGuiTableFlags.SizingFixedSame | ImGuiTableFlags.NoHostExtendX | ImGuiTableFlags.NoPadOuterX | ImGuiTableFlags.NoPadInnerX)) {
-            byte* pColumnName = stackalloc byte[7 + 3 + 1] {
-                (byte)'C', (byte)'o', (byte)'l', (byte)'u', (byte)'m', (byte)'n', (byte)' ',
-                0, 0, 0, 0,
-            };
-
             ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Vector2.Zero);
             for (int i = 0; i < columnAmount; i++) {
-                bool format = i.TryFormat(new Span<byte>(pColumnName + 7, 3), out int written);
-                Debug.Assert(format);
-
-                ImGuiNative.igTableSetupColumn(pColumnName, ImGuiTableColumnFlags.WidthFixed, cellWidth, 0);
+                ImGui.TableSetupColumn([], ImGuiTableColumnFlags.WidthFixed, cellWidth, 0);
             }
             ImGui.PopStyleVar();
 
@@ -376,7 +368,7 @@ unsafe partial class AssetBrowserWindow {
 
             var areaBegin = ImGui.GetWindowPos() + ImGui.GetCursorPos() - new Vector2(ImGui.GetScrollX(), ImGui.GetScrollY());
             var areaEnd = areaBegin + new Vector2(itemWidth, textSize.Y);
-            ImGuiAddition.RenderTextEllipsis(ImGui.GetWindowDrawList(), areaBegin, areaEnd, areaEnd.X, areaEnd.X, filename, ref textSize);
+            ImGuiInternal.RenderTextEllipsis(ImGui.GetWindowDrawList(), areaBegin, areaEnd, areaEnd.X, areaEnd.X, filename, ref textSize);
 
             ImGui.Dummy(areaEnd - areaBegin);
         } else {

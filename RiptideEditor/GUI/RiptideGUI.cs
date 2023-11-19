@@ -43,7 +43,7 @@ public static unsafe class RiptideGUI {
 
         ImGui.PushID(id);
         {
-            ImGuiAddition.PushMultiItemsWidths(2, ImGui.CalcItemWidth());
+            ImGuiInternal.PushMultiItemsWidths(2, ImGui.CalcItemWidth());
 
             var itemWidth = ImGui.CalcItemWidth();
             var oldCursorX = ImGui.GetCursorPosX();

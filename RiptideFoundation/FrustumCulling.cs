@@ -24,10 +24,10 @@ public static class FrustumCulling {
                SNPlane.DotCoordinate(frustum.Near, point) >= 0 && SNPlane.DotCoordinate(frustum.Far, point) >= 0;
     }
 
-    public static unsafe bool Test(in Frustum frustum, Sphere<float> sphere) {
+    public static unsafe bool Test(in Frustum frustum, Sphere sphere) {
         fixed (SNPlane* pPlanes = &frustum.Top) {
             for (int i = 0; i < 6; i++) {
-                float distance = SNPlane.DotCoordinate(pPlanes[i], sphere.GetPosition());
+                float distance = SNPlane.DotCoordinate(pPlanes[i], sphere.Position);
 
                 if (distance < -sphere.Radius) return false;
             }
@@ -36,19 +36,19 @@ public static class FrustumCulling {
         return true;
     }
 
-    public static unsafe bool Test(in Frustum frustum, Bound3D<float> box) {
+    public static unsafe bool Test(in Frustum frustum, Bound3D box) {
         fixed (SNPlane* pPlanes = &frustum.Top) {
-            Vector3 boxMin = box.GetMinimum(), boxMax = box.GetMaximum();
+            Vector3 boxMin = box.Min, boxMax = box.Max;
 
             Vector3* vertices = stackalloc Vector3[8] {
                 boxMin,
-                boxMin with { X = box.MaxX },
-                boxMin with { Y = box.MaxY },
-                boxMax with { Z = box.MinZ },
-                boxMin with { Z = box.MaxZ },
-                boxMax with { Y = box.MinY },
-                boxMax with { X = box.MinX },
-                box.GetMaximum(),
+                boxMin with { X = boxMax.X },
+                boxMin with { Y = boxMax.Y },
+                boxMax with { Z = boxMin.Z },
+                boxMin with { Z = boxMax.Z },
+                boxMax with { Y = boxMin.Y },
+                boxMax with { X = boxMin.X },
+                boxMax,
             };
 
             for (int i = 0; i < 6; i++) {

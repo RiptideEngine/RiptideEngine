@@ -1,4 +1,5 @@
 ﻿using RiptideRendering.Shadering;
+using Silk.NET.Input;
 
 namespace RiptideEditor;
 
@@ -17,29 +18,28 @@ internal unsafe class ImGuiController : IDisposable {
 
     private BaseRenderingContext _context;
 
-    private Vector2 _displaySize;
-
     private readonly IInputService _input;
-    private readonly TimeTracker _time;
 
-    private ImFontPtr _font;
+    private ImFontPtr _fontNormal, _fontBold;
 
-    public ImGuiController(RiptideServices services, Vector2 displaySize, TimeTracker time) {
+    public ImFontPtr FontNormal => _fontNormal;
+    public ImFontPtr FontTitle1 => _fontBold;
+
+    public ImGuiController(RiptideServices services, Vector2 displaySize) {
         _context = services.GetRequiredService<IRenderingService>().Context;
         _input = services.GetRequiredService<IInputService>();
-        _time = time;
 
         _input.KeyChar += KeyCharacterInput;
         _input.KeyUp += KeyEventUp;
         _input.KeyDown += KeyEventDown;
 
-        _input.MouseScroll += MouseEventScroll;
+        _input.MouseScroll += MouseScroll;
 
         pContext = ImGui.CreateContext();
         ImGui.SetCurrentContext(pContext);
 
         var io = ImGui.GetIO();
-        io.DisplaySize = _displaySize = displaySize;
+        io.DisplaySize = displaySize;
 
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
         io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard | ImGuiConfigFlags.DockingEnable;
@@ -86,7 +86,11 @@ internal unsafe class ImGuiController : IDisposable {
         {
             var io = ImGui.GetIO();
 
-            _font = io.Fonts.AddFontFromFileTTF(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "font.ttf"), 15);
+            _fontNormal = io.Fonts.AddFontFromFileTTF(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "font.ttf"), 18);
+            if (_fontNormal.NativePtr == null) throw new Exception("Failed to load font.");
+            
+            _fontBold = io.Fonts.AddFontFromFileTTF(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "font_bold.ttf"), 36);
+            if (_fontBold.NativePtr == null) throw new Exception("Failed to load font.");
 
             io.Fonts.GetTexDataAsRGBA32(out byte* pFontPixels, out int width, out int height);
 
@@ -252,28 +256,31 @@ internal unsafe class ImGuiController : IDisposable {
             ImGui.GetIO().AddKeyEvent(imguiKey, true);
         }
     }
-    private void MouseEventScroll(ScrollWheel scroll) {
+    private void MouseScroll(ScrollWheel scroll) {
         ImGui.GetIO().AddMouseWheelEvent(scroll.X, scroll.Y);
     }
 
-    public void Update() {
+    public void Update(float deltaTime) {
         var io = ImGui.GetIO();
-        io.DisplaySize = _displaySize;
-        io.DisplayFramebufferScale = Vector2.One;
-        io.DeltaTime = _time.DeltaTime;
 
+        io.DisplayFramebufferScale = Vector2.One;
+        io.DeltaTime = deltaTime;
+        io.DisplaySize = new Vector2(EditorApplication.MainWindow.Size.X, EditorApplication.MainWindow.Size.Y);
+        
         // Update input events
         var mpos = _input.MousePosition;
         io.AddMousePosEvent(mpos.X, mpos.Y);
 
-        io.AddMouseButtonEvent(0, _input.IsMouseHolding(MouseButton.Left));
-        io.AddMouseButtonEvent(1, _input.IsMouseHolding(MouseButton.Right));
-        io.AddMouseButtonEvent(2, _input.IsMouseHolding(MouseButton.Middle));
+        io.AddMouseButtonEvent(0, _input.IsHolding(MouseButton.Left));
+        io.AddMouseButtonEvent(1, _input.IsHolding(MouseButton.Right));
+        io.AddMouseButtonEvent(2, _input.IsHolding(MouseButton.Middle));
+        //io.AddMouseButtonEvent(3, _input.IsMouseHolding(MouseButton.Button4));
+        //io.AddMouseButtonEvent(4, _input.IsMouseHolding(MouseButton.Button5));
 
-        io.AddKeyEvent(ImGuiKey.ModShift, _input.IsKeyHolding(Key.ShiftLeft) || _input.IsKeyHolding(Key.ShiftRight));
-        io.AddKeyEvent(ImGuiKey.ModAlt, _input.IsKeyHolding(Key.AltLeft) || _input.IsKeyHolding(Key.AltRight));
-        io.AddKeyEvent(ImGuiKey.ModCtrl, _input.IsKeyHolding(Key.ControlLeft) || _input.IsKeyHolding(Key.ControlRight));
-        io.AddKeyEvent(ImGuiKey.ModSuper, _input.IsKeyHolding(Key.SuperLeft) || _input.IsKeyHolding(Key.SuperRight));
+        io.AddKeyEvent(ImGuiKey.ModShift, _input.IsHolding(Key.ShiftLeft) || _input.IsHolding(Key.ShiftRight));
+        io.AddKeyEvent(ImGuiKey.ModAlt, _input.IsHolding(Key.AltLeft) || _input.IsHolding(Key.AltRight));
+        io.AddKeyEvent(ImGuiKey.ModCtrl, _input.IsHolding(Key.ControlLeft) || _input.IsHolding(Key.ControlRight));
+        io.AddKeyEvent(ImGuiKey.ModSuper, _input.IsHolding(Key.SuperLeft) || _input.IsHolding(Key.SuperRight));
 
         // New frame
         ImGui.NewFrame();
@@ -479,10 +486,6 @@ internal unsafe class ImGuiController : IDisposable {
         ]);
     }
 
-    public void SetDisplaySize(Vector2 size) {
-        _displaySize = size;
-    }
-
     protected virtual void Dispose(bool disposing) {
         if (pContext == nint.Zero) return;
 
@@ -495,7 +498,7 @@ internal unsafe class ImGuiController : IDisposable {
 
         _shader.DecrementReference(); _shader = null!;
 
-        _input.MouseScroll -= MouseEventScroll;
+        _input.MouseScroll -= MouseScroll;
 
         _input.KeyChar -= KeyCharacterInput;
         _input.KeyUp -= KeyEventUp;

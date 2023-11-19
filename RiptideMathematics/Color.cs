@@ -1,32 +1,19 @@
 ﻿namespace RiptideMathematics;
 
-[JsonConverter(typeof(ColorConverter))]
-public unsafe partial struct Color(float red, float green, float blue, float alpha) : IEquatable<Color>, IFormattable {
-    [JsonInclude] public float R = red;
-    [JsonInclude] public float G = green;
-    [JsonInclude] public float B = blue;
-    [JsonInclude] public float A = alpha;
+public partial struct Color(float red, float green, float blue, float alpha = 1) : IEquatable<Color>, IFormattable {
+    public float R = red;
+    public float G = green;
+    public float B = blue;
+    public float A = alpha;
 
     public Color(float grayscale, float alpha) : this(grayscale, grayscale, grayscale, alpha) { }
-    public Color(float red, float green, float blue) : this(red, green, blue, 1) { }
 
     public readonly Vector4 AsVector4() => Unsafe.BitCast<Color, Vector4>(this);
     public readonly Vector128<float> AsVector128() => Unsafe.BitCast<Color, Vector128<float>>(this);
 
     public override readonly bool Equals(object? other) => other is Color color && Equals(color);
 
-    public readonly bool Equals(Color other) {
-        if (Vector128.IsHardwareAccelerated) {
-            if (Sse2.IsSupported) {
-                return AsVector128() == Sse.LoadVector128((float*)&other);
-            }
-            if (AdvSimd.IsSupported) {
-                return AsVector128() == AdvSimd.LoadVector128((float*)&other);
-            }
-        }
-
-        return R == other.R && G == other.G && B == other.B && A == other.A;
-    }
+    public readonly bool Equals(Color other) => Unsafe.BitCast<Color, Vector4>(this) == Unsafe.BitCast<Color, Vector4>(other);
 
     public override readonly int GetHashCode() => HashCode.Combine(R, G, B, A);
 
@@ -38,4 +25,16 @@ public unsafe partial struct Color(float red, float green, float blue, float alp
 
         return $"<{R.ToString(format, provider)}{separator} {G.ToString(format, provider)}{separator} {B.ToString(format, provider)}{separator} {A.ToString(format, provider)}>";
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator +(Color left, Color right) => Add(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator -(Color left, Color right) => Subtract(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator -(Color left) => Negate(left);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator *(Color left, Color right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator *(Color left, float right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator *(float left, Color right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator /(Color left, Color right) => Divide(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static Color operator /(Color left, float right) => Divide(left, right);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static bool operator ==(Color left, Color right) => left.Equals(right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] public static bool operator !=(Color left, Color right) => !(left == right);
 }

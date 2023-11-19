@@ -64,7 +64,7 @@ internal unsafe partial class D3D12CommandList : CommandList {
         pCommandList.OMSetStencilRef(stencilRef);
     }
 
-    public override void SetViewport(Rectangle<float> area) {
+    public override void SetViewport(Rectangle2D area) {
         EnsureNotClosed();
 
         Unsafe.SkipInit(out D3D12Viewport vp);
@@ -75,7 +75,7 @@ internal unsafe partial class D3D12CommandList : CommandList {
         pCommandList.RSSetViewports(1, &vp);
     }
 
-    public override void SetScissorRect(Bound2D<int> area) {
+    public override void SetScissorRect(Bound2DInt area) {
         EnsureNotClosed();
         pCommandList.RSSetScissorRects(1, (Silk.NET.Maths.Box2D<int>*)&area);
     }
@@ -138,9 +138,9 @@ internal unsafe partial class D3D12CommandList : CommandList {
         pCommandList.ClearDepthStencilView(new() { Ptr = (nuint)handle.Handle, }, (ClearFlags)flags, depth, stencil, 0, (Silk.NET.Maths.Box2D<int>*)null);
     }
 
-    public override void ClearDepthTexture(NativeDepthStencilView handle, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas) {
+    public override void ClearDepthTexture(NativeDepthStencilView handle, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2DInt> clearAreas) {
         EnsureNotClosed();
-        fixed (Bound2D<int>* pAreas = clearAreas) {
+        fixed (Bound2DInt* pAreas = clearAreas) {
             pCommandList.ClearDepthStencilView(new() { Ptr = (nuint)handle.Handle }, (ClearFlags)flags, depth, stencil, (uint)clearAreas.Length, (Silk.NET.Maths.Box2D<int>*)pAreas);
         }
     }
@@ -150,9 +150,9 @@ internal unsafe partial class D3D12CommandList : CommandList {
         pCommandList.ClearRenderTargetView(new() { Ptr = (nuint)handle.Handle }, &color.R, 0, (Silk.NET.Maths.Box2D<int>*)null);
     }
 
-    public override void ClearRenderTarget(NativeRenderTargetView handle, Color color, ReadOnlySpan<Bound2D<int>> clearAreas) {
+    public override void ClearRenderTarget(NativeRenderTargetView handle, Color color, ReadOnlySpan<Bound2DInt> clearAreas) {
         EnsureNotClosed();
-        fixed (Bound2D<int>* pBoxes = clearAreas) {
+        fixed (Bound2DInt* pBoxes = clearAreas) {
             pCommandList.ClearRenderTargetView(new() { Ptr = (nuint)handle.Handle }, &color.R, (uint)clearAreas.Length, (Silk.NET.Maths.Box2D<int>*)pBoxes);
         }
     }

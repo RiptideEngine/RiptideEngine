@@ -1,9 +1,9 @@
-﻿namespace RiptideEditor;
+﻿using RiptideEditor.Application;
+
+namespace RiptideEditor;
 
 public static unsafe partial class EditorApplication {
     private static ImGuiController _imguiController = null!;
-
-    public static TimeTracker Time { get; private set; } = null!;
 
     public static Logger Logger { get; private set; } = null!;
 
@@ -14,29 +14,28 @@ public static unsafe partial class EditorApplication {
 
     public static string ProjectPath { get; private set; } = string.Empty;
 
-    internal static void Initialize(string projectPath) {
-        if (!Path.IsPathFullyQualified(projectPath)) throw new ArgumentException("Project path must be fully qualified.");
-        
+    public static Timeline Time { get; private set; } = null!;
+
+    private static ApplicationState? _queueingState;
+    private static ApplicationState _currentState = null!;
+
+    internal static void Initialize() {
+        // if (!Path.IsPathFullyQualified(projectPath)) throw new ArgumentException("Project path must be fully qualified.");
+
         Logger = new(100);
         Logger.OnLogAdded += (record) => {
             var cc = Console.ForegroundColor;
 
-            switch (record.Type) {
-                case LoggingType.Info: Console.ForegroundColor = ConsoleColor.Gray; break;
-                case LoggingType.Warning: Console.ForegroundColor = ConsoleColor.Yellow; break;
-                case LoggingType.Error or _: Console.ForegroundColor = ConsoleColor.DarkRed; break;
-            }
+            Console.ForegroundColor = record.Type switch {
+                LoggingType.Info => ConsoleColor.Gray,
+                LoggingType.Warning => ConsoleColor.Yellow,
+                _ => ConsoleColor.DarkRed
+            };
 
             Console.WriteLine(record.Message);
 
             Console.ForegroundColor = cc;
         };
-
-        //AppDomain.CurrentDomain.AssemblyLoad += (sender, e) => {
-        //    Logger.Log(LoggingType.Info, "Assembly loaded: " + e.LoadedAssembly.FullName);
-        //};
-
-        ProjectPath = projectPath;
 
         CreateMainWindow();
 
@@ -50,68 +49,56 @@ public static unsafe partial class EditorApplication {
         Services = new();
 
         CreateSystemServices(Services);
+        RuntimeFoundation.Initialize(Services);
 
-        EditorResourceDatabase.Initialize(Services, ProjectPath);
+        // EditorResourceDatabase.Initialize(Services, ProjectPath);
         EditorScene.Initialize(Services);
         GameRuntimeContext.Initialize(Services);
 
-        CreateGameRuntimeServices(Services);
-        RuntimeFoundation.Initialize(Services);
+        _imguiController = new(Services, new(MainWindow.Size.X, MainWindow.Size.Y));
+        ImGui.StyleColorsDark();
+
+        // CreateGameRuntimeServices(Services);
 
         // RiptideSerialization.Initialize(Services);
 
-        Graphics.RenderingPipeline = new TestRenderingPipeline();
+        // Graphics.RenderingPipeline = new TestRenderingPipeline();
 
-        _imguiController = new(Services, new(MainWindow.Size.X, MainWindow.Size.Y), Time);
+        //Toolbar.Initialize();
 
-        ImGui.StyleColorsDark();
+        //EditorWindows.GetOrAddWindowInstance<SceneViewWindow>();
+        //EditorWindows.GetOrAddWindowInstance<GameViewWindow>();
+        //EditorWindows.GetOrAddWindowInstance<InspectorWindow>();
+        //EditorWindows.GetOrAddWindowInstance<HierarchyWindow>();
+        //EditorWindows.GetOrAddWindowInstance<ConsoleWindow>();
+        //EditorWindows.GetOrAddWindowInstance<AssetBrowserWindow>();
 
-        Toolbar.Initialize();
-
-        EditorWindows.GetOrAddWindowInstance<SceneViewWindow>();
-        EditorWindows.GetOrAddWindowInstance<GameViewWindow>();
-        EditorWindows.GetOrAddWindowInstance<InspectorWindow>();
-        EditorWindows.GetOrAddWindowInstance<HierarchyWindow>();
-        EditorWindows.GetOrAddWindowInstance<ConsoleWindow>();
-        EditorWindows.GetOrAddWindowInstance<AssetBrowserWindow>();
+        _currentState = new ProjectOpenState();
+        _currentState.Begin();
     }
 
     internal static void Update(double deltaTime) {
-        Time.Update(deltaTime);
-        _imguiController.Update();
+        _imguiController.Update((float)deltaTime);
 
-        Shortcuts.Execute();
+        _currentState.Update();
 
-        if (PlaymodeProcedure.IsInPlaymode) {
-            if (!PlaymodeProcedure.IsPaused) {
-                foreach (var scene in EditorScene.EnumerateScenes()) {
-                    scene.Tick();
-                }
-            }
+        _currentState.RenderGUI();
+
+        if (_queueingState != null) {
+            _currentState.End();
+            _currentState = _queueingState;
+            _currentState.Begin();
         }
 
-        var mainViewport = ImGui.GetMainViewport();
+        //Shortcuts.Execute();
 
-        MenuBar.Render();
-
-        Toolbar.Render();
-
-        ImGui.SetNextWindowPos(mainViewport.Pos + new Vector2(0, ImGui.GetFrameHeight() + Toolbar.ToolbarHeight));
-        ImGui.SetNextWindowSize(new(mainViewport.Size.X, mainViewport.Size.Y - ImGui.GetFrameHeight() - Toolbar.ToolbarHeight));
-
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        ImGui.Begin("Main Workspace", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoNavFocus | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
-
-        ImGui.PopStyleVar(3);
-        {
-            ImGui.DockSpace(ImGui.GetID("Main Dockspace"), ImGui.GetWindowContentRegionMax() - ImGui.GetWindowContentRegionMin(), ImGuiDockNodeFlags.PassthruCentralNode);
-
-            ImGui.ShowDemoWindow();
-            EditorWindows.RenderWindows();
-        }
-        ImGui.End();
+        //if (PlaymodeProcedure.IsInPlaymode) {
+        //    if (!PlaymodeProcedure.IsPaused) {
+        //        foreach (var scene in EditorScene.EnumerateScenes()) {
+        //            scene.Tick();
+        //        }
+        //    }
+        //}
     }
 
     internal static void Render(double deltaTime) {
@@ -147,16 +134,23 @@ public static unsafe partial class EditorApplication {
 
         _renderingContext.ResizeSwapchain((uint)size.X, (uint)size.Y);
 
-        _imguiController.SetDisplaySize(new(size.X, size.Y));
+        _currentState.Resize(size.X, size.Y);
+    }
+
+    internal static T SwitchState<T>() where T : ApplicationState, new() {
+        _queueingState = new T();
+        return Unsafe.As<T>(_queueingState);
     }
 
     public static void Shutdown() {
-        Toolbar.Shutdown();
+        // Toolbar.Shutdown();
 
-        EditorWindows.RemoveAllWindows();
+        _currentState.Shutdown();
+
+        // EditorWindows.RemoveAllWindows();
         _imguiController?.Dispose();
 
-        EditorResourceDatabase.Shutdown();
+        // EditorResourceDatabase.Shutdown();
         RuntimeFoundation.Shutdown();
 
         Services.RemoveAllServices();

@@ -144,11 +144,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
             ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("X");
             ImGui.TableSetColumnIndex(1);
 
-            _float = camera.Viewport.X;
+            _float = camera.Viewport.Position.X;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##X", ref _float, 0.004f)) {
                 var vp = camera.Viewport;
-                vp.X = _float;
+                vp.Position.X = _float;
                 camera.Viewport = vp;
             }
 
@@ -157,11 +157,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
 
             ImGui.TableSetColumnIndex(3);
 
-            _float = camera.Viewport.Y;
+            _float = camera.Viewport.Position.Y;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##Y", ref _float, 0.004f)) {
                 var vp = camera.Viewport;
-                vp.Y = _float;
+                vp.Position.Y = _float;
                 camera.Viewport = vp;
             }
 
@@ -171,11 +171,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
             ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("W");
             ImGui.TableSetColumnIndex(1);
 
-            _float = camera.Viewport.W;
+            _float = camera.Viewport.Size.X;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##W", ref _float, 0.004f)) {
                 var vp = camera.Viewport;
-                vp.W = _float;
+                vp.Size.X = _float;
                 camera.Viewport = vp;
             }
 
@@ -184,11 +184,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
 
             ImGui.TableSetColumnIndex(3);
 
-            _float = camera.Viewport.H;
+            _float = camera.Viewport.Size.Y;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##H", ref _float, 0.004f)) {
                 var vp = camera.Viewport;
-                vp.H = _float;
+                vp.Size.Y = _float;
                 camera.Viewport = vp;
             }
 
@@ -213,11 +213,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
             ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("Min X");
             ImGui.TableSetColumnIndex(1);
 
-            _float = camera.ScissorRect.MinX;
+            _float = camera.ScissorRect.Min.X;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##MinX", ref _float, 0.002f, 0, 1)) {
                 var vp = camera.ScissorRect;
-                vp.MinX = _float;
+                vp.Min.X = _float;
                 camera.ScissorRect = vp;
             }
 
@@ -226,11 +226,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
 
             ImGui.TableSetColumnIndex(3);
 
-            _float = camera.ScissorRect.MinY;
+            _float = camera.ScissorRect.Min.Y;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##MinY", ref _float, 0.002f, 0, 1)) {
                 var vp = camera.ScissorRect;
-                vp.MinY = _float;
+                vp.Min.Y = _float;
                 camera.ScissorRect = vp;
             }
 
@@ -240,11 +240,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
             ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("Max X");
             ImGui.TableSetColumnIndex(1);
 
-            _float = camera.ScissorRect.MaxX;
+            _float = camera.ScissorRect.Max.X;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##MaxX", ref _float, 0.002f, 0, 1)) {
                 var vp = camera.ScissorRect;
-                vp.MaxX = _float;
+                vp.Max.X = _float;
                 camera.ScissorRect = vp;
             }
 
@@ -253,11 +253,11 @@ internal sealed class CameraComponentDrawer : BaseComponentDrawer {
 
             ImGui.TableSetColumnIndex(3);
 
-            _float = camera.ScissorRect.MaxY;
+            _float = camera.ScissorRect.Max.Y;
             ImGui.SetNextItemWidth(-1);
             if (ImGui.DragFloat("##MaxY", ref _float, 0.002f, 0, 1)) {
                 var vp = camera.ScissorRect;
-                vp.MaxY = _float;
+                vp.Max.Y = _float;
                 camera.ScissorRect = vp;
             }
 

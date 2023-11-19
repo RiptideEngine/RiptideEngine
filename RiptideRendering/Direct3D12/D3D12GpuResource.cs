@@ -48,7 +48,7 @@ internal sealed unsafe class D3D12GpuResource : GpuResource {
         }
     }
 
-    public D3D12GpuResource(D3D12RenderingContext context, in ResourceDescriptor desc, ResourceStates initialStates) {
+    public D3D12GpuResource(D3D12RenderingContext context, in ResourceDescriptor desc) {
         HeapProperties hprops = new() {
             CPUPageProperty = CpuPageProperty.Unknown,
             MemoryPoolPreference = MemoryPool.Unknown,
@@ -106,7 +106,7 @@ internal sealed unsafe class D3D12GpuResource : GpuResource {
 
         using ComPtr<ID3D12Resource> pResource = default;
         fixed (ClearValue* pClear = clear) {
-            hr = device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, D3D12Convert.Convert(initialStates), pClear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pResource.GetAddressOf());
+            hr = device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, D3D12ResourceStates.Common, pClear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pResource.GetAddressOf());
         }
         Marshal.ThrowExceptionForHR(hr);
 

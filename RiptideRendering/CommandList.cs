@@ -12,10 +12,10 @@ public abstract partial class CommandList : RenderingObject {
     public abstract void TranslateResourceStates(ReadOnlySpan<ResourceTransitionDescriptor> descs);
 
     public abstract void ClearRenderTarget(NativeRenderTargetView view, Color color);
-    public abstract void ClearRenderTarget(NativeRenderTargetView view, Color color, ReadOnlySpan<Bound2D<int>> clearAreas);
+    public abstract void ClearRenderTarget(NativeRenderTargetView view, Color color, ReadOnlySpan<Bound2DInt> clearAreas);
 
     public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil);
-    public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2D<int>> clearAreas);
+    public abstract void ClearDepthTexture(NativeDepthStencilView view, DepthClearFlags flags, float depth, byte stencil, ReadOnlySpan<Bound2DInt> clearAreas);
 
     // Resource updating
     public abstract void UpdateBufferRegion(NativeResourceHandle resource, uint offset, ReadOnlySpan<byte> source);
@@ -26,12 +26,12 @@ public abstract partial class CommandList : RenderingObject {
     // Resource copying
     public abstract void CopyBuffer(NativeResourceHandle source, NativeResourceHandle destination);
     public abstract void CopyBufferRegion(NativeResourceHandle source, ulong sourceOffset, NativeResourceHandle destination, ulong destinationOffset, ulong numBytes);
-    public abstract void CopyTextureRegion(NativeResourceHandle source, Bound3D<uint> sourceBox, NativeResourceHandle destination, uint destinationX, uint destinationY, uint destinationZ);
+    public abstract void CopyTextureRegion(NativeResourceHandle source, Bound3DUInt sourceBox, NativeResourceHandle destination, uint destinationX, uint destinationY, uint destinationZ);
 
     // Pipeline configurations
     public abstract void SetStencilRef(uint stencilRef);
-    public abstract void SetViewport(Rectangle<float> area);
-    public abstract void SetScissorRect(Bound2D<int> area);
+    public abstract void SetViewport(Rectangle2D area);
+    public abstract void SetScissorRect(Bound2DInt area);
 
     public abstract void SetRenderTarget(NativeRenderTargetView renderTarget);
     public abstract void SetRenderTarget(NativeRenderTargetView renderTarget, NativeDepthStencilView depthStencil);

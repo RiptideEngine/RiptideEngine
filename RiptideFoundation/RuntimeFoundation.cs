@@ -1,15 +1,8 @@
-﻿using RiptideRendering.Shadering;
-using Silk.NET.Core.Native;
-using Silk.NET.Direct3D.Compilers;
+﻿namespace RiptideFoundation;
 
-namespace RiptideFoundation;
-
-internal static unsafe class RuntimeFoundation {
+public static unsafe class RuntimeFoundation {
     internal static IRenderingService RenderingService { get; private set; } = null!;
-    internal static ISceneGraphService SceneGraphService { get; private set; } = null!;
-    internal static IRuntimeWindowService WindowService { get; private set; } = null!;
     internal static IInputService InputService { get; private set; } = null!;
-    internal static IComponentDatabase ComponentDatabase { get; private set; } = null!;
     internal static ResourceDatabase ResourceDatabase { get; private set; } = null!;
 
     internal static void AssertInitialized() {
@@ -21,11 +14,8 @@ internal static unsafe class RuntimeFoundation {
         if (RenderingService != null) throw new InvalidOperationException("A service has already been used to initialize RiptideFoundation.");
 
         RenderingService = services.GetRequiredService<IRenderingService>();
-        SceneGraphService = services.GetRequiredService<ISceneGraphService>();
-        WindowService = services.GetRequiredService<IRuntimeWindowService>();
         InputService = services.GetRequiredService<IInputService>();
-        ComponentDatabase = services.GetRequiredService<IComponentDatabase>();
-        ResourceDatabase = (ResourceDatabase)services.GetRequiredService<IResourceDatabase>();
+        // ResourceDatabase = (ResourceDatabase)services.GetRequiredService<IResourceDatabase>();
     }
 
     public static void Shutdown() { }

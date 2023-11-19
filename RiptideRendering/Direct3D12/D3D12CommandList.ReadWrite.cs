@@ -16,7 +16,7 @@ unsafe partial class D3D12CommandList {
         pCommandList.CopyBufferRegion((ID3D12Resource*)destination.Handle, destinationOffset, (ID3D12Resource*)source.Handle, sourceOffset, numBytes);
     }
 
-    public override void CopyTextureRegion(NativeResourceHandle source, Bound3D<uint> sourceBox, NativeResourceHandle destination, uint destinationX, uint destinationY, uint destinationZ) {
+    public override void CopyTextureRegion(NativeResourceHandle source, Bound3DUInt sourceBox, NativeResourceHandle destination, uint destinationX, uint destinationY, uint destinationZ) {
         EnsureNotClosed();
 
         ResourceDesc sourceRDesc = ((ID3D12Resource*)source.Handle)->GetDesc();
@@ -37,16 +37,18 @@ unsafe partial class D3D12CommandList {
         };
 
         pCommandList.CopyTextureRegion(&dest, destinationX, destinationY, destinationZ, &src, new Box() {
-            Left = sourceBox.MinX,
-            Right = sourceBox.MaxX,
-            Top = sourceBox.MinY,
-            Bottom = sourceBox.MaxY,
-            Front = sourceBox.MinZ,
-            Back = sourceBox.MaxZ,
+            Left = sourceBox.Min.X,
+            Right = sourceBox.Max.X,
+            Top = sourceBox.Min.Y,
+            Bottom = sourceBox.Max.Y,
+            Front = sourceBox.Min.Z,
+            Back = sourceBox.Max.Z,
         });
     }
 
     public override void UpdateResource(NativeResourceHandle resource, ReadOnlySpan<byte> data) {
+        if (data.IsEmpty) return;
+
         ResourceDesc rdesc = ((ID3D12Resource*)resource.Handle)->GetDesc();
 
         PlacedSubresourceFootprint placedSubresource;
@@ -67,8 +69,26 @@ unsafe partial class D3D12CommandList {
 
                 var pitch = placedSubresource.Footprint.RowPitch;
 
-                for (uint r = 0; r < numRows; r++) {
-                    Unsafe.CopyBlock(region.CpuAddress + pitch * r, pSource + rowSize * r, (uint)rowSize);
+                if (numRows * rowSize <= (ulong)data.Length) {
+                    for (uint r = 0; r < numRows; r++) {
+                        Unsafe.CopyBlock(region.CpuAddress + pitch * r, pSource + rowSize * r, (uint)rowSize);
+                    }
+                } else {
+                    uint copyRows = (uint)((ulong)data.Length / rowSize);
+
+                    for (uint r = 0; r < copyRows; r++) {
+                        Unsafe.CopyBlock(region.CpuAddress + pitch * r, pSource + rowSize * r, (uint)rowSize);
+                    }
+
+                    uint excessAmount = (uint)((ulong)data.Length % rowSize);
+                    if (excessAmount != 0) {
+                        Unsafe.CopyBlock(region.CpuAddress + pitch * copyRows, pSource + rowSize * copyRows, excessAmount);
+                        Unsafe.InitBlock(region.CpuAddress + pitch * copyRows + excessAmount, 0, (uint)rowSize - excessAmount);
+                    }
+
+                    for (uint r = copyRows + 1; r < numRows; r++) {
+                        Unsafe.InitBlock(region.CpuAddress + pitch * r, 0x00, (uint)rowSize);
+                    }
                 }
 
                 TextureCopyLocation dest = new() {

@@ -24,9 +24,9 @@ public sealed class RiptideServices {
         return instance;
     }
 
-    public TType CreateService<TInterface, TType, TOptions>(TOptions options) where TInterface : IRiptideService
-                                                                              where TType : class, TInterface
-                                                                              where TOptions : notnull {
+    public TType CreateService<TInterface, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TType, TOptions>(TOptions options) where TInterface : IRiptideService
+                                                                                                                                                                                                                                                                                         where TType : class, TInterface
+                                                                                                                                                                                                                                                                                         where TOptions : notnull {
         var interfaceType = typeof(TInterface);
         var instanceType = typeof(TType);
 

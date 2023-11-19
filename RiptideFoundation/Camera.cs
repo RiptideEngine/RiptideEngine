@@ -12,8 +12,8 @@ public sealed class Camera : Component {
     [JsonInclude, JsonPropertyName("ProjectionType")] private CameraProjection _projectionType;
     [JsonPropertyName("FOV")] public float PerspectiveFOV { get; set; }
     [JsonPropertyName("OrthoSize")] public float OrthographicSize { get; set; }
-    public Rectangle<float> Viewport { get; set; }
-    public Bound2D<float> ScissorRect { get; set; }
+    public Rectangle2D Viewport { get; set; }
+    public Bound2D ScissorRect { get; set; }
     public float NearPlane { get; set; }
     public float FarPlane { get; set; }
 
@@ -50,10 +50,12 @@ public sealed class Camera : Component {
         OrthographicSize = 10;
         NearPlane = 0.001f;
         FarPlane = 1000f;
-        Viewport = new(0, 0, 1, 1);
+        Viewport = new(Vector2.Zero, Vector2.One);
         ScissorRect = new(0, 0, 1, 1);
 
-        var ss = Screen.Size;
-        AspectRatio = ss.X / ss.Y;
+        AspectRatio = 16f / 9f;
+
+        // var ss = Screen.Size;
+        // AspectRatio = ss.X / ss.Y;
     }
 }

@@ -81,7 +81,7 @@ internal sealed unsafe class MeshImporter : ResourceImporter {
             new(16, 0),
         ]);
         mesh.AllocateIndexBuffer(numFaces * 3, indexFormat);
-        mesh.SetSubmeshes([ new(0, numFaces * 3, new(new Bound3D<float>(aabbMin.X, aabbMin.Y, aabbMin.Z, aabbMax.X, aabbMax.Y, aabbMax.Z))) ]);
+        mesh.SetSubmeshes([ new(0, numFaces * 3, new(new Bound3D(aabbMin.X, aabbMin.Y, aabbMin.Z, aabbMax.X, aabbMax.Y, aabbMax.Z))) ]);
 
         var cmdList = renderCtx.Factory.CreateCommandList();
 
