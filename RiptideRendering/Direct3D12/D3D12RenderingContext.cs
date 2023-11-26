@@ -1,6 +1,4 @@
-﻿using RiptideRendering.Shadering;
-
-namespace RiptideRendering.Direct3D12;
+﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContext {
     private D3D12Factory _factory;
@@ -102,8 +100,6 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
             Display = new(this, options.OutputWindow);
 
             _deferredDestructor = new();
-
-            DxcCompilation.Initialize();
         } catch {
             Dispose();
             throw;
@@ -121,8 +117,6 @@ internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContex
     protected override void Dispose(bool disposing) {
         if (D3D12 == null) return;
         RenderingQueue.WaitForIdle();
-
-        DxcCompilation.Shutdown();
 
         if (disposing) {
             CommandListPool?.Dispose(); CommandListPool = null!;

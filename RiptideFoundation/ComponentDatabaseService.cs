@@ -7,8 +7,8 @@ internal sealed class ComponentDatabaseService : IComponentDatabase {
     public int ComponentsCount => _guidToType.Count;
 
     public ComponentDatabaseService() {
-        _guidToType = [];
-        _typeToGuid = [];
+        _guidToType = new();
+        _typeToGuid = new();
 
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()) {
             LoadComponentTypes(assembly, _guidToType, _typeToGuid);

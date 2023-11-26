@@ -1,13 +1,17 @@
 ﻿namespace RiptideFoundation;
 
 public static class Graphics {
-    internal static BaseRenderingContext RenderingContext => RuntimeFoundation.RenderingService.Context;
+    internal static BaseRenderingContext RenderingContext { get; private set; } = null!;
     internal static RenderingPipeline RenderingPipeline { get; set; } = null!;
 
     private static readonly List<CommandList> _commandLists;
 
     static Graphics() {
         _commandLists = new();
+    }
+
+    internal static void Initialize(RiptideServices services) {
+        RenderingContext = services.GetRequiredService<IRenderingService>().Context;
     }
 
     public static void AddCommandListExecutionBatch(CommandList commandList) {

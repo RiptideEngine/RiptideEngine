@@ -4,16 +4,11 @@
 /// A class responsible to encapsulate a Dictionary of services that can be created and retrieved via interface types.
 /// </summary>
 public sealed class RiptideServices {
-    private readonly Dictionary<Type, IRiptideService> _services;
+    private readonly Dictionary<Type, IRiptideService> _services = new();
 
-    public RiptideServices() {
-        _services = [];
-    }
-
-    public TType CreateService<TInterface, TType>() where TInterface : IRiptideService
-                                                    where TType : TInterface, new() {
+    public TType CreateService<TInterface, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TType>() where TInterface : IRiptideService
+                                                                                                                                                                                                                                                                      where TType : TInterface, new() {
         var interfaceType = typeof(TInterface);
-        var instanceType = typeof(TType);
 
         if (!interfaceType.IsInterface) throw new ArgumentException(string.Format(ExceptionMessages.GenericArgumentMustBeInterface, nameof(TInterface)));
         if (_services.ContainsKey(interfaceType)) throw new ArgumentException(string.Format(ExceptionMessages.ServiceAlreadyRegistered, interfaceType.FullName));
@@ -25,8 +20,8 @@ public sealed class RiptideServices {
     }
 
     public TType CreateService<TInterface, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TType, TOptions>(TOptions options) where TInterface : IRiptideService
-                                                                                                                                                                                                                                                                                         where TType : class, TInterface
-                                                                                                                                                                                                                                                                                         where TOptions : notnull {
+                                                                                                                                                                                                                                                                                                 where TType : class, TInterface
+                                                                                                                                                                                                                                                                                                 where TOptions : notnull {
         var interfaceType = typeof(TInterface);
         var instanceType = typeof(TType);
 
@@ -35,7 +30,7 @@ public sealed class RiptideServices {
 
         var optionType = typeof(TOptions);
 
-        var constructor = instanceType.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, [optionType]) ?? throw new ArgumentException($"Failed to get constructor of '{instanceType.FullName}' that takes 1 parameter of option type '{optionType.FullName}'.");
+        var constructor = instanceType.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, new[] {optionType}) ?? throw new ArgumentException($"Failed to get constructor of '{instanceType.FullName}' that takes 1 parameter of option type '{optionType.FullName}'.");
         var instance = Unsafe.As<TType>(constructor.Invoke(new object[] { options }));
         _services.Add(interfaceType, instance);
 

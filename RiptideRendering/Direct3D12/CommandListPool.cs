@@ -8,7 +8,7 @@ internal unsafe sealed class CommandListPool : IDisposable {
     private D3D12RenderingContext _context;
 
     public CommandListPool(D3D12RenderingContext context) {
-        _pool = [];
+        _pool = new();
         _availables = new Queue<D3D12CommandList>();
 
         _lock = new();

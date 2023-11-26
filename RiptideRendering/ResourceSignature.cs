@@ -13,7 +13,7 @@ public enum ResourceParameterType {
 [EnumExtension]
 public enum ResourceRangeType {
     ConstantBuffer = 0,
-    ResourceView = 1,
+    ShaderResourceView = 1,
     UnorderedAccess = 2,
     Sampler = 3,
 }

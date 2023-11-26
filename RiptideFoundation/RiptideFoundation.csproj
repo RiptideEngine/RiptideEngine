@@ -36,6 +36,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\Riptide.ShaderCompilation\Riptide.ShaderCompilation.csproj" />
 	  <ProjectReference Include="..\Riptide.TextEngine\Riptide.TextEngine.csproj" />
 	  <ProjectReference Include="..\RiptideDatabase\RiptideDatabase.csproj" />
 	  <ProjectReference Include="..\RiptideEngine.SceneGraph\RiptideEngine.SceneGraph.csproj" />

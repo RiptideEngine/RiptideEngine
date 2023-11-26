@@ -11,14 +11,14 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
 
         {
             if (info.OutputTarget.UnderlyingDepthView is { } view) {
-                cmdList.ClearDepthTexture(view, DepthClearFlags.All, 1, 0);
+                cmdList.ClearDepthTexture(view, DepthClearFlags.All, 1, 0, ReadOnlySpan<Bound2DInt>.Empty);
             }
         }
         
         if (info.OutputCameras.Length > 0) {
-            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, info.OutputCameras[0].ClearColor);
+            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, info.OutputCameras[0].ClearColor, ReadOnlySpan<Bound2DInt>.Empty);
             
-            cmdList.SetRenderTarget(info.OutputTarget.UnderlyingView, info.OutputTarget.UnderlyingDepthView is { } view ? view.NativeView : default);
+            cmdList.SetRenderTarget(info.OutputTarget.UnderlyingView, info.OutputTarget.UnderlyingDepthView);
 
             foreach (var camera in info.OutputCameras) {                
                 var vp = camera.Viewport;
@@ -36,7 +36,7 @@ public sealed unsafe class TestRenderingPipeline : RenderingPipeline {
                 //}
             }
         } else {
-            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, Color.Black);
+            cmdList.ClearRenderTarget(info.OutputTarget.UnderlyingView, Color.Black, ReadOnlySpan<Bound2DInt>.Empty);
         }
 
         cmdList.Close();

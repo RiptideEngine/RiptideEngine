@@ -1,8 +1,8 @@
 ﻿namespace RiptideFoundation;
 
 public sealed class RenderTarget : RiptideRcObject {
-    private GpuResource _colorTexture;
-    private GpuResource? _depthTexture;
+    private GpuTexture _colorTexture;
+    private GpuTexture? _depthTexture;
 
     private RenderTargetView _rtv;
     private DepthStencilView? _dsv;
@@ -17,7 +17,7 @@ public sealed class RenderTarget : RiptideRcObject {
         if (dimension == TextureDimension.Unknown) throw new ArgumentException("Cannot create RenderTarget with unknown dimension.");
         if (!dimension.IsDefined()) throw new ArgumentException("Cannot create RenderTarget with undefined dimension.");
 
-        var factory = RuntimeFoundation.RenderingService.Context.Factory;
+        var factory = Graphics.RenderingContext.Factory;
 
         try {
             RenderTargetViewDimension rtvDimension;
@@ -52,13 +52,13 @@ public sealed class RenderTarget : RiptideRcObject {
                 default: throw new UnreachableException();
             }
 
-            _colorTexture = factory.CreateResource(new() {
-                Dimension = (ResourceDimension)(dimension + 1),
+            _colorTexture = factory.CreateTexture(new() {
+                Dimension = dimension,
                 Width = width,
                 Height = height,
                 DepthOrArraySize = depthOrArraySize,
-                TextureFormat = format,
-                Flags = ResourceFlags.RenderTarget,
+                Format = format,
+                Flags = TextureFlags.RenderTarget,
             });
             _rtv = factory.CreateRenderTargetView(_colorTexture, new() {
                 Dimension = rtvDimension,
@@ -68,13 +68,13 @@ public sealed class RenderTarget : RiptideRcObject {
             if (depthFormat != GraphicsFormat.Unknown) {
                 if (!depthFormat.IsDepthFormat()) throw new ArgumentException($"Depth format must be {nameof(GraphicsFormat.D16UNorm)}, {nameof(GraphicsFormat.D24UNormS8UInt)}, {nameof(GraphicsFormat.D32Float)}, {nameof(GraphicsFormat.D32FloatS8UInt)}.");
 
-                _depthTexture = factory.CreateResource(new() {
-                    Dimension = (ResourceDimension)(dimension + 1),
+                _depthTexture = factory.CreateTexture(new() {
+                    Dimension = dimension,
                     Width = width,
                     Height = height,
                     DepthOrArraySize = depthOrArraySize,
-                    TextureFormat = depthFormat,
-                    Flags = ResourceFlags.DepthStencil,
+                    Format = depthFormat,
+                    Flags = TextureFlags.DepthStencil,
                 });
                 _dsv = factory.CreateDepthStencilView(_depthTexture, new() {
                     Dimension = dsvDimension,

@@ -5,7 +5,7 @@ internal sealed unsafe class Display : IDisposable {
 
     [InlineArray(BufferCount)]
     private struct SwapchainBufferArray {
-        private (D3D12GpuResource Resource, D3D12RenderTargetView View) _element0;
+        private (D3D12GpuTexture Texture, D3D12RenderTargetView View) _element0;
     }
 
     private readonly D3D12RenderingContext _context;
@@ -15,7 +15,7 @@ internal sealed unsafe class Display : IDisposable {
 
     private uint _currentSwapchainIndex;
     public uint CurrentSwapchainIndex => _currentSwapchainIndex;
-    public (GpuResource Resource, RenderTargetView View) CurrentSwapchainRenderTarget => _swapchainBuffers[(int)_currentSwapchainIndex];
+    public (GpuTexture Texture, RenderTargetView View) CurrentSwapchainRenderTarget => _swapchainBuffers[(int)_currentSwapchainIndex];
 
     public Display(D3D12RenderingContext context, IWindow outputWindow) {
         int hr;
@@ -95,7 +95,7 @@ internal sealed unsafe class Display : IDisposable {
     }
 
     private void CreateRenderTargets() {
-        RenderTargetViewDescriptor desc = new() {
+        RenderTargetViewDescription desc = new() {
             Dimension = RenderTargetViewDimension.Texture2D,
             Format = GraphicsFormat.R8G8B8A8UNorm,
             Texture2D = new() {
@@ -105,7 +105,7 @@ internal sealed unsafe class Display : IDisposable {
         };
 
         for (uint i = 0; i < BufferCount; i++) {
-            var texture = new D3D12GpuResource(_context, (IDXGISwapChain*)pSwapchain.Handle, i) {
+            var texture = new D3D12GpuTexture(_context, (IDXGISwapChain*)pSwapchain.Handle, i) {
                 Name = "D3D12 Swapchain Resource " + i,
             };
             var view = new D3D12RenderTargetView(_context, texture, desc);

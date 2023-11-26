@@ -15,3 +15,4 @@ global using SNPlane = System.Numerics.Plane;
 global using RiptideMathematics;
 global using RiptideDatabase;
 global using RiptideFoundation.Database;
+global using System.Collections.Immutable;

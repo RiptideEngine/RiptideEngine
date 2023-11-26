@@ -11,7 +11,7 @@ public sealed class Mesh : RiptideRcObject {
     private uint _vertexCount, _indexCount;
     private IndexFormat _indexFormat;
     
-    public GpuResource? IndexBuffer { get; private set; }
+    public GpuBuffer? IndexBuffer { get; private set; }
 
     public uint VertexCount => _vertexCount;
     public uint IndexCount => _indexCount;
@@ -22,6 +22,8 @@ public sealed class Mesh : RiptideRcObject {
     public override string? Name {
         get => base.Name;
         set {
+            if (Interlocked.Read(ref _refcount) == 0) return;
+            
             base.Name = value;
 
             if (IndexBuffer != null) IndexBuffer.Name = $"{value}.IndexBuffer";
@@ -35,8 +37,6 @@ public sealed class Mesh : RiptideRcObject {
     }
 
     public Mesh() {
-        RuntimeFoundation.AssertInitialized();
-
         _vertexDescs = Array.Empty<VertexDescriptor>();
         _vertexBuffers = Array.Empty<VertexBuffer>();
         _submeshes = Array.Empty<SubmeshInformation>();
@@ -61,20 +61,13 @@ public sealed class Mesh : RiptideRcObject {
         
         ValidateVertexDescriptors(descriptors);
 
-        var factory = RuntimeFoundation.RenderingService.Context.Factory;
+        var factory = Graphics.RenderingContext.Factory;
         VertexBuffer[] outputs = new VertexBuffer[descriptors.Length];
         int index = 0;
         
         try {
-            ResourceDescriptor rdesc = new() {
-                Dimension = ResourceDimension.Buffer,
-                Height = 1,
-                DepthOrArraySize = 1,
-                Flags = ResourceFlags.None,
-                TextureFormat = GraphicsFormat.Unknown,
-            };
-            ResourceViewDescriptor vdesc = new() {
-                Dimension = ResourceViewDimension.Buffer,
+            ShaderResourceViewDescription srvdesc = new() {
+                Dimension = ShaderResourceViewDimension.Buffer,
                 Buffer = new() {
                     FirstElement = 0,
                     NumElements = numVertices,
@@ -83,16 +76,16 @@ public sealed class Mesh : RiptideRcObject {
 
             for (; index < descriptors.Length; index++) {
                 var descriptor = descriptors[index];
-                GpuResource? resource = null;
-                ResourceView? view = null;
+                GpuBuffer? resource = null;
+                ShaderResourceView? view = null;
 
                 try {
-                    resource = factory.CreateResource(rdesc with {
+                    resource = factory.CreateBuffer(new BufferDescription {
                         Width = numVertices * descriptor.Stride,
                     });
                     resource.Name = $"{Name}.VertexBuffer[{descriptor.Channel}].Buffer";
-                    view = factory.CreateResourceView(resource, vdesc with {
-                        Buffer = vdesc.Buffer with { StructureSize = descriptor.Stride },
+                    view = factory.CreateShaderResourceView(resource, srvdesc with {
+                        Buffer = srvdesc.Buffer with { StructureSize = descriptor.Stride },
                     });
                     view.Name = $"{Name}.VertexBuffer[{descriptor.Channel}].View";
                 } catch {
@@ -134,11 +127,8 @@ public sealed class Mesh : RiptideRcObject {
             return;
         }
 
-        IndexBuffer = Graphics.RenderingContext.Factory.CreateResource(new() {
-            Dimension = ResourceDimension.Buffer,
+        IndexBuffer = Graphics.RenderingContext.Factory.CreateBuffer(new() {
             Width = numIndices * (2U << (int)format),
-            Height = 1,
-            DepthOrArraySize = 1,
         });
         IndexBuffer.Name = $"{Name}.IndexBuffer";
 
@@ -201,5 +191,5 @@ public sealed class Mesh : RiptideRcObject {
         }
     }
 
-    public readonly record struct VertexBuffer(GpuResource Buffer, ResourceView View);
+    public readonly record struct VertexBuffer(GpuBuffer Buffer, ShaderResourceView View);
 }

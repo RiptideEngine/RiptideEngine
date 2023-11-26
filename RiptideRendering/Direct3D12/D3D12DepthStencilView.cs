@@ -1,30 +1,32 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
-    public D3D12DepthStencilView(D3D12RenderingContext context, D3D12GpuResource resource, DepthStencilViewDescriptor descriptor) {
-        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Dsv).Allocate();
-        bool convert = D3D12Convert.TryConvert(descriptor.Format, out var format);
+    public CpuDescriptorHandle Handle { get; private set; }
+    
+    [SkipLocalsInit]
+    public D3D12DepthStencilView(D3D12RenderingContext context, D3D12GpuTexture texture, DepthStencilViewDescription desc) {
+        Unsafe.SkipInit(out DepthStencilViewDesc dsvdesc);
+        
+        bool convert = D3D12Convert.TryConvert(desc.Format, out dsvdesc.Format);
         Debug.Assert(convert);
 
-        DepthStencilViewDesc desc = new() {
-            Flags = DsvFlags.None,
-            Format = format,
-            ViewDimension = (DsvDimension)(descriptor.Dimension + 1),
-        };
+        dsvdesc.Flags = DsvFlags.None;
 
-        switch (descriptor.Dimension) {
+        switch (desc.Dimension) {
             case DepthStencilViewDimension.Texture1D:
-                ref readonly var tex1d = ref descriptor.Texture1D;
+                ref readonly var tex1d = ref desc.Texture1D;
 
-                desc.Texture1D = new() {
+                dsvdesc.ViewDimension = DsvDimension.Texture1D;
+                dsvdesc.Texture1D = new() {
                     MipSlice = tex1d.MipSlice,
                 };
                 break;
 
             case DepthStencilViewDimension.Texture1DArray:
-                ref readonly var tex1darr = ref descriptor.Texture1DArray;
+                ref readonly var tex1darr = ref desc.Texture1DArray;
 
-                desc.Texture1DArray = new() {
+                dsvdesc.ViewDimension = DsvDimension.Texture1Darray;
+                dsvdesc.Texture1DArray = new() {
                     MipSlice = tex1darr.MipSlice,
                     FirstArraySlice = tex1darr.FirstArraySlice,
                     ArraySize = tex1darr.ArraySize,
@@ -32,41 +34,46 @@ internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
                 break;
 
             case DepthStencilViewDimension.Texture2D:
-                ref readonly var tex2d = ref descriptor.Texture2D;
+                ref readonly var tex2d = ref desc.Texture2D;
 
-                desc.Texture2D = new() {
+                dsvdesc.ViewDimension = DsvDimension.Texture2D;
+                dsvdesc.Texture2D = new() {
                     MipSlice = tex2d.MipSlice,
                 };
                 break;
 
             case DepthStencilViewDimension.Texture2DArray:
-                ref readonly var tex2darr = ref descriptor.Texture2DArray;
+                ref readonly var tex2darr = ref desc.Texture2DArray;
 
-                desc.Texture1DArray = new() {
+                dsvdesc.ViewDimension = DsvDimension.Texture2Darray;
+                dsvdesc.Texture2DArray = new() {
                     MipSlice = tex2darr.MipSlice,
                     FirstArraySlice = tex2darr.FirstArraySlice,
                     ArraySize = tex2darr.ArraySize,
                 };
                 break;
 
-            case DepthStencilViewDimension.Texture2DMS: break;
-
-            case DepthStencilViewDimension.Texture2DMSArray:
-                ref readonly var tex2dmsarr = ref descriptor.Texture2DMSArray;
-
-                desc.Texture2DMSArray = new() {
-                    FirstArraySlice = tex2dmsarr.FirstArraySlice,
-                    ArraySize = tex2dmsarr.ArraySize,
-                };
-                break;
+            // case DepthStencilViewDimension.Texture2DMS: break;
+            //
+            // case DepthStencilViewDimension.Texture2DMSArray:
+            //     ref readonly var tex2dmsarr = ref descriptor.Texture2DMSArray;
+            //
+            //     desc.Texture2DMSArray = new() {
+            //         FirstArraySlice = tex2dmsarr.FirstArraySlice,
+            //         ArraySize = tex2dmsarr.ArraySize,
+            //     };
+            //     break;
+            
+            default: throw new UnreachableException();
         }
-
-        context.Device->CreateDepthStencilView((ID3D12Resource*)resource.NativeResource.Handle, &desc, handle);
-        NativeView = new(handle.Ptr);
+        
+        Handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Dsv).Allocate();
+        context.Device->CreateDepthStencilView((ID3D12Resource*)texture.NativeResourceHandle, &dsvdesc, Handle);
+        
         _refcount = 1;
     }
 
     protected override void Dispose() {
-        NativeView = default;
+        Handle = default;
     }
 }

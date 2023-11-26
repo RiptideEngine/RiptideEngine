@@ -238,6 +238,7 @@ unsafe partial class AudioSource {
             while (queued > 0) {
                 uint unqueue;
                 AudioEngine.AL!.SourceUnqueueBuffers(source._source, 1, &unqueue);
+                queued--;
             }
 
             AudioEngine.AL!.SourceStop(source._source);

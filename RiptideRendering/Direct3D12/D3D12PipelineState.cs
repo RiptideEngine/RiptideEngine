@@ -1,6 +1,4 @@
-﻿using RiptideRendering.Shadering;
-
-namespace RiptideRendering.Direct3D12;
+﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12PipelineState : PipelineState {
     private const string UnnamedPipelineState = $"<Unnamed {nameof(D3D12PipelineState)}>.pPipelineState";
@@ -32,114 +30,151 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
         }
     }
 
-    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature pipelineResource, in PipelineStateDescriptor descriptor) {
+    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature pipelineResource, in PipelineStateDescription description) {
         ShaderBytecode vs, ps, hs, ds;
         RasterizerDesc rdesc;
         DepthStencilDesc dsdesc;
         BlendDesc bdesc;
         Unsafe.SkipInit(out GraphicsPipelineStateDesc.RTVFormatsBuffer rtFormats);
 
-        // Converting data
-        {
-            vs = D3D12Helper.CreateShaderBytecode((IDxcBlob*)shader.VertexShaderHandle);
-            ps = D3D12Helper.CreateShaderBytecode((IDxcBlob*)shader.PixelShaderHandle);
+        fixed (byte* pVSBytecode = shader.VSBytecode) {
+            fixed (byte* pPSBytecode = shader.PSBytecode) {
+                fixed (byte* pHSBytecode = shader.HSBytecode) {
+                    fixed (byte* pDSBytecode = shader.DSBytecode) {
+                        ref readonly var rtConfig = ref description.RenderTargetFormats;
 
-            if (shader.HasTessellationStages) {
-                hs = D3D12Helper.CreateShaderBytecode((IDxcBlob*)shader.HullShaderHandle);
-                ds = D3D12Helper.CreateShaderBytecode((IDxcBlob*)shader.DomainShaderHandle);
-            } else {
-                hs = ds = default;
+                        bool convert = D3D12Convert.TryConvert(rtConfig.Formats[0], out rtFormats[0]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 0.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[1], out rtFormats[1]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 1.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[2], out rtFormats[2]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 2.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[3], out rtFormats[3]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 3.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[4], out rtFormats[4]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 4.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[5], out rtFormats[5]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 5.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[6], out rtFormats[6]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 6.");
+                        
+                        convert = D3D12Convert.TryConvert(rtConfig.Formats[7], out rtFormats[7]);
+                        if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 7.");
+
+                        ref readonly var rasterConfig = ref description.Rasterization;
+                        rdesc = new() {
+                            CullMode = rasterConfig.CullMode switch {
+                                CullingMode.None => CullMode.None,
+                                CullingMode.Front => CullMode.Front,
+                                _ => CullMode.Back,
+                            },
+                            FillMode = rasterConfig.FillMode switch {
+                                FillingMode.Wireframe => FillMode.Wireframe,
+                                _ => FillMode.Solid,
+                            },
+                            ConservativeRaster = rasterConfig.Conservative ? ConservativeRasterizationMode.On : ConservativeRasterizationMode.Off,
+                            DepthClipEnable = true,
+                        };
+
+                        ref readonly var blendConfig = ref description.Blending;
+                        bdesc = new() {
+                            AlphaToCoverageEnable = false,
+                            IndependentBlendEnable = blendConfig.Independent,
+                        };
+
+                        bdesc.RenderTarget[0] = ConvertTargetBlend(description.Blending.Blends[0]);
+                        bdesc.RenderTarget[1] = ConvertTargetBlend(description.Blending.Blends[1]);
+                        bdesc.RenderTarget[2] = ConvertTargetBlend(description.Blending.Blends[2]);
+                        bdesc.RenderTarget[3] = ConvertTargetBlend(description.Blending.Blends[3]);
+                        bdesc.RenderTarget[4] = ConvertTargetBlend(description.Blending.Blends[4]);
+                        bdesc.RenderTarget[5] = ConvertTargetBlend(description.Blending.Blends[5]);
+                        bdesc.RenderTarget[6] = ConvertTargetBlend(description.Blending.Blends[6]);
+                        bdesc.RenderTarget[7] = ConvertTargetBlend(description.Blending.Blends[7]);
+
+                        ref readonly var dsconfig = ref description.DepthStencil;
+                        dsdesc = new() {
+                            DepthEnable = dsconfig.EnableDepth,
+                            StencilEnable = dsconfig.EnableStencil,
+                            DepthWriteMask = dsconfig.DepthWrite ? DepthWriteMask.All : DepthWriteMask.Zero,
+                            StencilReadMask = dsconfig.StencilReadMask,
+                            StencilWriteMask = dsconfig.StencilWriteMask,
+                            DepthFunc = D3D12Convert.TryConvert(dsconfig.DepthComparison, out var depthFunc) ? depthFunc : ComparisonFunc.Never,
+                            BackFace = new() {
+                                StencilDepthFailOp = (StencilOp)dsconfig.BackfaceOperation.DepthFailOp,
+                                StencilFailOp = (StencilOp)dsconfig.BackfaceOperation.FailOp,
+                                StencilPassOp = (StencilOp)dsconfig.BackfaceOperation.PassOp,
+                                StencilFunc = (ComparisonFunc)(dsconfig.BackfaceOperation.CompareOp + 1),
+                            },
+                            FrontFace = new() {
+                                StencilDepthFailOp = (StencilOp)dsconfig.FrontFaceOperation.DepthFailOp,
+                                StencilFailOp = (StencilOp)dsconfig.FrontFaceOperation.FailOp,
+                                StencilPassOp = (StencilOp)dsconfig.FrontFaceOperation.PassOp,
+                                StencilFunc = (ComparisonFunc)(dsconfig.FrontFaceOperation.CompareOp + 1),
+                            },
+                        };
+
+                        convert = D3D12Convert.TryConvert(description.DepthFormat, out var depthFormat);
+                        if (!convert) throw new ArgumentException("Failed to convert depth format.");
+
+                        GraphicsPipelineStateDesc desc = new() {
+                            VS = new() {
+                                PShaderBytecode = pVSBytecode,
+                                BytecodeLength = (nuint)shader.VSBytecode.Length
+                            },
+                            HS = new() {
+                                PShaderBytecode = pHSBytecode,
+                                BytecodeLength = (nuint)shader.HSBytecode.Length
+                            },
+                            DS = new() {
+                                PShaderBytecode = pDSBytecode,
+                                BytecodeLength = (nuint)shader.DSBytecode.Length
+                            },
+                            PS = new() {
+                                PShaderBytecode = pPSBytecode,
+                                BytecodeLength = (nuint)shader.PSBytecode.Length
+                            },
+
+                            PRootSignature = pipelineResource.RootSignature,
+                            SampleMask = uint.MaxValue,
+                            SampleDesc = new() {
+                                Count = 1,
+                                Quality = 0,
+                            },
+                            RasterizerState = rdesc,
+                            DepthStencilState = dsdesc,
+                            BlendState = bdesc,
+                            RTVFormats = rtFormats,
+                            PrimitiveTopologyType = (PrimitiveTopologyType)description.PrimitiveTopology,
+                            DSVFormat = depthFormat,
+                            NumRenderTargets = description.RenderTargetFormats.NumRenderTargets,
+                            NodeMask = 1,
+                        };
+
+                        using ComPtr<ID3D12PipelineState> pOutput = default;
+                        int hr = context.Device->CreateGraphicsPipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pOutput.GetAddressOf());
+                        Marshal.ThrowExceptionForHR(hr);
+
+                        D3D12Helper.SetName(pOutput.Handle, UnnamedPipelineState);
+                        pPipelineState.Handle = pOutput.Detach();
+
+                        Shader = shader;
+                        Shader.IncrementReference();
+
+                        Type = PipelineStateType.Graphical;
+                    }
+                }
             }
-
-            ref readonly var rtConfig = ref descriptor.RenderTargetFormats;
-
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[0], out rtFormats[0]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[1], out rtFormats[1]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[2], out rtFormats[2]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[3], out rtFormats[3]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[4], out rtFormats[4]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[5], out rtFormats[5]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[6], out rtFormats[6]);
-            D3D12Convert.TryConvert(descriptor.RenderTargetFormats.Formats[7], out rtFormats[7]);
-
-            ref readonly var rasterConfig = ref descriptor.Rasterization;
-            rdesc = new() {
-                CullMode = rasterConfig.CullMode switch {
-                    CullingMode.None => CullMode.None,
-                    CullingMode.Front => CullMode.Front,
-                    CullingMode.Back or _ => CullMode.Back,
-                },
-                FillMode = rasterConfig.FillMode switch {
-                    FillingMode.Wireframe => FillMode.Wireframe,
-                    FillingMode.Solid or _ => FillMode.Solid,
-                },
-                ConservativeRaster = rasterConfig.Conservative ? ConservativeRasterizationMode.On : ConservativeRasterizationMode.Off,
-                DepthClipEnable = true,
-            };
-
-            ref readonly var blendConfig = ref descriptor.Blending;
-            bdesc = new() {
-                AlphaToCoverageEnable = false,
-                IndependentBlendEnable = blendConfig.Independent,
-            };
-
-            bdesc.RenderTarget[0] = ConvertTargetBlend(descriptor.Blending.Blends[0]);
-            bdesc.RenderTarget[1] = ConvertTargetBlend(descriptor.Blending.Blends[1]);
-            bdesc.RenderTarget[2] = ConvertTargetBlend(descriptor.Blending.Blends[2]);
-            bdesc.RenderTarget[3] = ConvertTargetBlend(descriptor.Blending.Blends[3]);
-            bdesc.RenderTarget[4] = ConvertTargetBlend(descriptor.Blending.Blends[4]);
-            bdesc.RenderTarget[5] = ConvertTargetBlend(descriptor.Blending.Blends[5]);
-            bdesc.RenderTarget[6] = ConvertTargetBlend(descriptor.Blending.Blends[6]);
-            bdesc.RenderTarget[7] = ConvertTargetBlend(descriptor.Blending.Blends[7]);
-
-            ref readonly var dsconfig = ref descriptor.DepthStencil;
-            dsdesc = new() {
-                DepthEnable = dsconfig.EnableDepth,
-                StencilEnable = dsconfig.EnableStencil,
-                DepthWriteMask = DepthWriteMask.All,
-                StencilReadMask = D3D12.DefaultStencilReadMask,
-                StencilWriteMask = D3D12.DefaultStencilWriteMask,
-                DepthFunc = D3D12Convert.TryConvert(dsconfig.DepthComparison, out var depthFunc) ? depthFunc : ComparisonFunc.Never,
-                BackFace = Unsafe.BitCast<StencilOperationConfig, DepthStencilopDesc>(dsconfig.BackfaceOperation),
-                FrontFace = Unsafe.BitCast<StencilOperationConfig, DepthStencilopDesc>(dsconfig.FrontFaceOperation),
-            };
         }
-
-        bool cvt = D3D12Convert.TryConvert(descriptor.DepthFormat, out var depthFormat);
-        Debug.Assert(cvt);
-
-        GraphicsPipelineStateDesc desc = new() {
-            VS = vs, PS = ps, HS = hs, DS = ds,
-            PRootSignature = pipelineResource.RootSignature,
-            SampleMask = uint.MaxValue,
-            SampleDesc = new() {
-                Count = 1,
-                Quality = 0,
-            },
-            RasterizerState = rdesc,
-            DepthStencilState = dsdesc,
-            BlendState = bdesc,
-            RTVFormats = rtFormats,
-            PrimitiveTopologyType = (PrimitiveTopologyType)descriptor.PrimitiveTopology,
-            DSVFormat = depthFormat,
-            NumRenderTargets = descriptor.RenderTargetFormats.NumRenderTargets,
-            NodeMask = 1,
-        };
-
-        using ComPtr<ID3D12PipelineState> pOutput = default;
-        int hr = context.Device->CreateGraphicsPipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pOutput.GetAddressOf());
-        Marshal.ThrowExceptionForHR(hr);
-
-        D3D12Helper.SetName(pOutput.Handle, UnnamedPipelineState);
-        pPipelineState.Handle = pOutput.Detach();
-
-        Shader = shader;
-        Shader.IncrementReference();
-
-        Type = PipelineStateType.Graphical;
+        
         _refcount = 1;
 
-        static RenderTargetBlendDesc ConvertTargetBlend(RenderTargetBlendConfig config) {
+        static RenderTargetBlendDesc ConvertTargetBlend(RenderTargetBlendDescription config) {
             return new() {
                 BlendEnable = config.EnableBlend,
                 RenderTargetWriteMask = (byte)config.WriteMask,

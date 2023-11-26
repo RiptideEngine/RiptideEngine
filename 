@@ -1,0 +1,118 @@
+[33mcommit e6f316dcf431c676f4bd5cfac3540c6342d4d90a[m[33m ([m[1;36mHEAD -> [m[1;32mdeveloping[m[33m, [m[1;31morigin/developing[m[33m)[m
+Author: NN Huy Hoang <destinyhero789@gmail.com>
+Date:   Sun Nov 19 15:53:05 2023 +0700
+
+    Remove generic math structures, add freetype, stb_rect_pack binding and font class
+
+:100644 000000 eca9f80 0000000 D	Libraries/ResourceExcavator.dll
+:000000 100644 0000000 1773a4e A	Riptide.TextEngine/FontEngine.cs
+:000000 100644 0000000 46ff365 A	Riptide.TextEngine/FreeType/FT_BBox.cs
+:000000 100644 0000000 74d5796 A	Riptide.TextEngine/FreeType/FT_Bitmap.cs
+:000000 100644 0000000 2b71bf6 A	Riptide.TextEngine/FreeType/FT_Bitmap_Size.cs
+:000000 100644 0000000 bba74af A	Riptide.TextEngine/FreeType/FT_CharMapRec.cs
+:000000 100644 0000000 b210682 A	Riptide.TextEngine/FreeType/FT_Encoding.cs
+:000000 100644 0000000 9af8a26 A	Riptide.TextEngine/FreeType/FT_Error.cs
+:000000 100644 0000000 a8bffc4 A	Riptide.TextEngine/FreeType/FT_F26Dot6.cs
+:000000 100644 0000000 f20fcfc A	Riptide.TextEngine/FreeType/FT_FaceRec.cs
+:000000 100644 0000000 ecd809b A	Riptide.TextEngine/FreeType/FT_Fixed.cs
+:000000 100644 0000000 51ea24a A	Riptide.TextEngine/FreeType/FT_Generic.cs
+:000000 100644 0000000 600117e A	Riptide.TextEngine/FreeType/FT_GlyphSlotRec.cs
+:000000 100644 0000000 12a5caf A	Riptide.TextEngine/FreeType/FT_Glyph_Format.cs
+:000000 100644 0000000 fde2f89 A	Riptide.TextEngine/FreeType/FT_Glyph_Metrics.cs
+:000000 100644 0000000 d198b80 A	Riptide.TextEngine/FreeType/FT_ListRec.cs
+:000000 100644 0000000 328bada A	Riptide.TextEngine/FreeType/FT_Load_Flags.cs
+:000000 100644 0000000 c2de6e0 A	Riptide.TextEngine/FreeType/FT_Outline.cs
+:000000 100644 0000000 e6eb9f6 A	Riptide.TextEngine/FreeType/FT_Pixel_Mode.cs
+:000000 100644 0000000 e0f034e A	Riptide.TextEngine/FreeType/FT_Pos.cs
+:000000 100644 0000000 027ba36 A	Riptide.TextEngine/FreeType/FT_Render_Mode.cs
+:000000 100644 0000000 bdc8243 A	Riptide.TextEngine/FreeType/FT_SizeRec.cs
+:000000 100644 0000000 8387311 A	Riptide.TextEngine/FreeType/FT_Size_Metrics.cs
+:000000 100644 0000000 218701b A	Riptide.TextEngine/FreeType/FT_Vector.cs
+:000000 100644 0000000 e68f65d A	Riptide.TextEngine/FreeType/FreeTypeBinding.cs
+:000000 100644 0000000 0933658 A	Riptide.TextEngine/FreeType/HandleWrappers.cs
+:000000 100644 0000000 08c7922 A	Riptide.TextEngine/RectPack/stb_rect_pack.cs
+:000000 100644 0000000 2d3e2b0 A	Riptide.TextEngine/RectPack/stbrp_context.cs
+:000000 100644 0000000 2147d4e A	Riptide.TextEngine/RectPack/stbrp_node.cs
+:000000 100644 0000000 8f37bcc A	Riptide.TextEngine/RectPack/stbrp_rect.cs
+:000000 100644 0000000 43cea26 A	Riptide.TextEngine/Riptide.TextEngine.csproj
+:000000 100644 0000000 3e20402 A	Riptide.TextEngine/freetype.dll
+:000000 100644 0000000 a091cd8 A	Riptide.TextEngine/stb_rect_pack.dll
+:100644 000000 19782b7 0000000 D	RiptideEditor/Application.cs
+:100644 100644 c27ed25 43f7b0c M	RiptideEditor/Assets/MeshImporter.cs
+:100644 100644 7e78720 d527e9a M	RiptideEditor/CameraComponentDrawer.cs
+:100644 100644 d11757d 21d51e1 M	RiptideEditor/EditorApplication.Services.cs
+:100644 100644 55ef334 e14b5e7 M	RiptideEditor/EditorApplication.cs
+:100644 000000 8105d62 0000000 D	RiptideEditor/GUI/ImGuiAddition.cs
+:100644 100644 a894a2c 59b16bb M	RiptideEditor/GUI/ImGuiController.cs
+:100644 100644 a6deff6 21f98bc M	RiptideEditor/GUI/RiptideGUI.cs
+:100644 100644 ab192f9 1d0c435 M	RiptideEditor/MeshRendererComponentDrawer.cs
+:100644 100644 cb18351 ddf4bfa M	RiptideEditor/Resources/font.ttf
+:100644 100644 43f74be 04d0769 M	RiptideEditor/RiptideEditor.csproj
+:100644 100644 a205785 27cb12f M	RiptideEditor/Serialization/EditorSceneConverterFactory.cs
+:100644 100644 1e4aa49 29ea8b4 M	RiptideEditor/Windows/AssetBrowserWindow.Listing.cs
+:100644 100644 79c618e 1309370 M	RiptideEngine.Core/RiptideRcObject.cs
+:100644 100644 1ecc974 e3df5c5 M	RiptideEngine.Core/RiptideServices.cs
+:100644 100644 8f2583b c65b3d9 M	RiptideEngine.sln
+:100644 100644 297f69f a5632a8 M	RiptideFoundation/Camera.cs
+:100644 100644 d7034d0 f4c2295 M	RiptideFoundation/FrustumCulling.cs
+:100644 100644 5eac089 dc629e1 M	RiptideFoundation/Mesh.cs
+:100644 100644 7995a45 3278ab8 M	RiptideFoundation/MeshBoundaryShape.cs
+:100644 100644 f8dff31 5c0e1ae M	RiptideFoundation/MeshRenderer.cs
+:100644 100644 42c2786 c08b39f M	RiptideFoundation/RenderingService.cs
+:100644 100644 6b94531 e2ee23a M	RiptideFoundation/RiptideFoundation.csproj
+:100644 100644 444dfd0 ee4a87d M	RiptideFoundation/RuntimeFoundation.cs
+:100644 100644 ec9c04d 82b1437 M	RiptideFoundation/Screen.cs
+:100644 100644 c95ea45 5f39def M	RiptideFoundation/Serialization/ComponentPolymorphismConverter.cs
+:100644 100644 93b410b 5cb3c27 R073	RiptideFoundation/InputService.cs	RiptideFoundation/SilkInputService.cs
+:100644 100644 e063ee0 a8c2d7f M	RiptideFoundation/TestRenderingPipeline.cs
+:100644 000000 4e1e325 0000000 D	RiptideFoundation/Time.cs
+:100644 000000 91f0094 0000000 D	RiptideMathematics/Bound2D.Conversion.cs
+:100644 000000 cbc48ff 0000000 D	RiptideMathematics/Bound2D.Operators.cs
+:100644 100644 fe8cf8a 65ca257 M	RiptideMathematics/Bound2D.cs
+:100644 000000 d81d6da 0000000 D	RiptideMathematics/Bound2DConverterFactory.cs
+:100644 000000 fc3770e 0000000 D	RiptideMathematics/Bound2DT.cs
+:100644 000000 3b2dd52 0000000 D	RiptideMathematics/Bound3D.Operators.cs
+:100644 100644 c7879dc 612f585 M	RiptideMathematics/Bound3D.cs
+:100644 000000 c26c234 0000000 D	RiptideMathematics/Bound3DConverterFactory.cs
+:100644 000000 392c5d8 0000000 D	RiptideMathematics/Bound3DT.cs
+:000000 100644 0000000 6753834 A	RiptideMathematics/Color.Constants.cs
+:000000 100644 0000000 88c85ad A	RiptideMathematics/Color.Extensions.cs
+:100644 000000 ca05f30 0000000 D	RiptideMathematics/Color.Operators.cs
+:100644 000000 dab924a 0000000 D	RiptideMathematics/Color.Statics.cs
+:100644 100644 92ad439 9097b44 M	RiptideMathematics/Color.cs
+:000000 100644 0000000 dc7e9ad A	RiptideMathematics/Color32.Constants.cs
+:000000 100644 0000000 89cd39a A	RiptideMathematics/Color32.Extensions.cs
+:000000 100644 0000000 c520aa7 A	RiptideMathematics/Color32.cs
+:100644 000000 396cbc7 0000000 D	RiptideMathematics/ColorConstants.cs
+:100644 000000 c8dbf34 0000000 D	RiptideMathematics/ColorConverter.cs
+:100644 100644 daa82d6 61f6fd5 M	RiptideMathematics/GlobalUsings.cs
+:100644 000000 706a250 0000000 D	RiptideMathematics/Rectangle.Operators.cs
+:100644 000000 8ff1c67 0000000 D	RiptideMathematics/Rectangle.cs
+:100644 000000 9420718 0000000 D	RiptideMathematics/RectangleConverterFactory.cs
+:100644 000000 f6871ec 0000000 D	RiptideMathematics/RectangleT.cs
+:100644 000000 b18b983 0000000 D	RiptideMathematics/Sphere.Operators.cs
+:100644 100644 3fc7f06 73ed7d2 M	RiptideMathematics/Sphere.cs
+:100644 000000 5ccde46 0000000 D	RiptideMathematics/SphereT.cs
+:100644 100644 a871850 7bacf0e M	RiptideRendering/BaseFactory.cs
+:100644 100644 bac10b2 d6c9884 M	RiptideRendering/CommandList.cs
+:100644 000000 55bbdbf 0000000 D	RiptideRendering/Direct3D12/ArgumentValidation.cs
+:100644 100644 83e38f1 eb13400 M	RiptideRendering/Direct3D12/D3D12CommandList.ReadWrite.cs
+:100644 100644 f214dd5 aeb460e M	RiptideRendering/Direct3D12/D3D12CommandList.cs
+:100644 100644 f068685 9fa271b M	RiptideRendering/Direct3D12/D3D12Factory.cs
+:100644 100644 dae7c16 baa5591 M	RiptideRendering/Direct3D12/D3D12GpuResource.cs
+:100644 100644 7eeccf1 a485efe M	RiptideRendering/Direct3D12/D3D12PipelineState.cs
+:100644 100644 9593a44 96ed823 R086	RiptideRendering/PipelineStateConfig.cs	RiptideRendering/PipelineStateDescriptor.cs
+
+[33mcommit 9b61363525d4c3bc337de428a70b381fdf6c2fb4[m
+Author: NN Huy Hoang <destinyhero789@gmail.com>
+Date:   Mon Nov 13 06:16:57 2023 +0700
+
+    Improve rendering API and fix enough error for the editor to boot up
+
+:100644 100644 526eade d11757d M	RiptideEditor/EditorApplication.Services.cs
+:100644 100644 1281188 55ef334 M	RiptideEditor/EditorApplication.cs
+:100644 100644 501f6c9 a894a2c M	RiptideEditor/GUI/ImGuiController.cs
+:100644 100644 de905a5 e2e8c48 M	RiptideEditor/Resources/ImGuiShader.hlsl
+:100644 100644 9c808f9 43f74be M	RiptideEditor/RiptideEditor.csproj
+:100644 100644 4b7a2b8 df75546 M	RiptideEditor/Windows/GameViewWindow.cs
+:100644 100644 252060a b

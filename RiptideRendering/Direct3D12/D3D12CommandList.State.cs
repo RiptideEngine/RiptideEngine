@@ -1,13 +1,16 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 unsafe partial class D3D12CommandList {
-    public override void SetIndexBuffer(NativeResourceHandle resource, IndexFormat format, uint offset) {
+    public override void SetIndexBuffer(GpuBuffer? buffer, IndexFormat format, uint offset) {
         EnsureNotClosed();
 
-        if (resource.Handle == 0) {
+        if (buffer == null) {
             pCommandList.IASetIndexBuffer((IndexBufferView*)null);
         } else {
-            var d3d12resource = (ID3D12Resource*)resource.Handle;
+            Debug.Assert(buffer is D3D12GpuBuffer, "buffer is D3D12GpuBuffer");
+            FlushResourceBarriers();
+            
+            var d3d12resource = (ID3D12Resource*)buffer.NativeResourceHandle;
             var rdesc = d3d12resource->GetDesc();
 
             if (offset >= rdesc.Width) {
@@ -16,7 +19,7 @@ unsafe partial class D3D12CommandList {
                 if (!format.IsDefined()) throw new ArgumentException("Undefined format enumeration.");
 
                 IndexBufferView view = new() {
-                    BufferLocation = ((ID3D12Resource*)resource.Handle)->GetGPUVirtualAddress() + offset,
+                    BufferLocation = ((ID3D12Resource*)buffer.NativeResourceHandle)->GetGPUVirtualAddress() + offset,
                     SizeInBytes = (uint)(rdesc.Width - offset),
                     Format = (Format)((uint)Format.FormatR16Uint - 15 * (uint)format),
                 };
@@ -65,10 +68,16 @@ unsafe partial class D3D12CommandList {
         pCommandList.SetGraphicsRoot32BitConstants(parameterIndex, (uint)constants.Length, Unsafe.AsPointer(ref MemoryMarshal.GetReference(constants)), offset);
     }
 
-    public override void SetGraphicsConstantBuffer(uint tableIndex, uint tableOffset, NativeResourceHandle resource, uint offset) {
+    public override void SetGraphicsConstantBuffer(uint tableIndex, uint tableOffset, GpuBuffer buffer, uint offset) {
+        Debug.Assert(buffer is D3D12GpuBuffer, "buffer is D3D12GpuBuffer");
+        
+        EnsureNotClosed();
+        
         if (!_descCommitter.TryGetGraphicsResourceDescriptor(tableIndex, tableOffset, out var descriptor)) return;
+        
+        FlushResourceBarriers();
 
-        ID3D12Resource* pResource = (ID3D12Resource*)resource.Handle;
+        ID3D12Resource* pResource = (ID3D12Resource*)buffer.NativeResourceHandle;
 
         if (pResource == null) {
             _context.Device->CreateConstantBufferView(null, descriptor);
@@ -78,19 +87,23 @@ unsafe partial class D3D12CommandList {
             if (offset > width) {
                 _context.Device->CreateConstantBufferView(null, descriptor);
             } else {
-                _context.Device->CreateConstantBufferView(new ConstantBufferViewDesc() {
+                _context.Device->CreateConstantBufferView(new ConstantBufferViewDesc {
                     BufferLocation = pResource->GetGPUVirtualAddress() + offset,
-                    SizeInBytes = ((uint)pResource->GetDesc().Width - offset + 255U) & ~255U,
+                    SizeInBytes = (uint)pResource->GetDesc().Width - offset + 255U & ~255U,
                 }, descriptor);
             }
         }
     }
 
-    public override void SetGraphicsResourceView(uint tableIndex, uint tableOffset, NativeResourceView view) {
+    public override void SetGraphicsShaderResourceView(uint tableIndex, uint tableOffset, ShaderResourceView? view) {
+        EnsureNotClosed();
+        
         if (!_descCommitter.TryGetGraphicsResourceDescriptor(tableIndex, tableOffset, out var descriptor)) return;
 
-        if (view.Handle == 0) {
-            _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc() {
+        FlushResourceBarriers();
+        
+        if (view == null) {
+            _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
                 ViewDimension = SrvDimension.Texture2D,
                 Format = Format.FormatR8G8B8A8Unorm,
                 Shader4ComponentMapping = D3D12Helper.DefaultShader4ComponentMapping,
@@ -102,7 +115,9 @@ unsafe partial class D3D12CommandList {
                 },
             }, descriptor);
         } else {
-            _context.Device->CopyDescriptorsSimple(1, descriptor, new() { Ptr = (nuint)view.Handle }, DescriptorHeapType.CbvSrvUav);
+            Debug.Assert(view is D3D12ShaderResourceView, "view is D3D12ShaderResourceView");
+            
+            _context.Device->CopyDescriptorsSimple(1, descriptor, Unsafe.As<D3D12ShaderResourceView>(view).Handle, DescriptorHeapType.CbvSrvUav);
         }
     }
 

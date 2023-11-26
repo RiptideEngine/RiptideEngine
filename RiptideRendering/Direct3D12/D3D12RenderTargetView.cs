@@ -1,38 +1,30 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
-    public D3D12RenderTargetView(D3D12RenderingContext context, D3D12GpuResource resource, RenderTargetViewDescriptor descriptor) {
-        var handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Rtv).Allocate();
-        var convert = D3D12Convert.TryConvert(descriptor.Format, out var format);
+    public CpuDescriptorHandle Handle { get; private set; }
+    
+    [SkipLocalsInit]
+    public D3D12RenderTargetView(D3D12RenderingContext context, D3D12GpuTexture texture, RenderTargetViewDescription desc) {
+        Unsafe.SkipInit(out RenderTargetViewDesc rtvdesc);
+        
+        var convert = D3D12Convert.TryConvert(desc.Format, out rtvdesc.Format);
         Debug.Assert(convert);
 
-        RenderTargetViewDesc desc = new() {
-            ViewDimension = (RtvDimension)(descriptor.Dimension + 1),
-            Format = format,
-        };
-
-        switch (descriptor.Dimension) {
-            case RenderTargetViewDimension.Buffer:
-                ref readonly var buffer = ref descriptor.Buffer;
-
-                desc.Buffer = new() {
-                    FirstElement = buffer.FirstElement,
-                    NumElements = buffer.NumElements,
-                };
-                break;
-
+        switch (desc.Dimension) {
             case RenderTargetViewDimension.Texture1D:
-                ref readonly var tex1d = ref descriptor.Texture1D;
+                ref readonly var tex1d = ref desc.Texture1D;
 
-                desc.Texture1D = new() {
+                rtvdesc.ViewDimension = RtvDimension.Texture1D;
+                rtvdesc.Texture1D = new() {
                     MipSlice = tex1d.MipSlice,
                 };
                 break;
 
             case RenderTargetViewDimension.Texture1DArray:
-                ref readonly var tex1darr = ref descriptor.Texture1DArray;
+                ref readonly var tex1darr = ref desc.Texture1DArray;
 
-                desc.Texture1DArray = new() {
+                rtvdesc.ViewDimension = RtvDimension.Texture1Darray;
+                rtvdesc.Texture1DArray = new() {
                     MipSlice = tex1darr.MipSlice,
                     FirstArraySlice = tex1darr.FirstArraySlice,
                     ArraySize = tex1darr.ArraySize,
@@ -40,18 +32,20 @@ internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
                 break;
 
             case RenderTargetViewDimension.Texture2D:
-                ref readonly var tex2d = ref descriptor.Texture2D;
+                ref readonly var tex2d = ref desc.Texture2D;
 
-                desc.Texture2D = new() {
+                rtvdesc.ViewDimension = RtvDimension.Texture2D;
+                rtvdesc.Texture2D = new() {
                     MipSlice = tex2d.MipSlice,
                     PlaneSlice = tex2d.PlaneSlice,
                 };
                 break;
 
             case RenderTargetViewDimension.Texture2DArray:
-                ref readonly var tex2darr = ref descriptor.Texture2DArray;
+                ref readonly var tex2darr = ref desc.Texture2DArray;
 
-                desc.Texture2DArray = new() {
+                rtvdesc.ViewDimension = RtvDimension.Texture2Darray;
+                rtvdesc.Texture2DArray = new() {
                     MipSlice = tex2darr.MipSlice,
                     PlaneSlice = tex2darr.PlaneSlice,
                     FirstArraySlice = tex2darr.FirstArraySlice,
@@ -59,34 +53,34 @@ internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
                 };
                 break;
 
-            case RenderTargetViewDimension.Texture2DMS: break;
-
-            case RenderTargetViewDimension.Texture2DMSArray:
-                ref readonly var tex2dmsarr = ref descriptor.Texture2DMSArray;
-
-                desc.Texture2DMSArray = new() {
-                    FirstArraySlice = tex2dmsarr.FirstArraySlice,
-                    ArraySize = tex2dmsarr.ArraySize,
-                };
-                break;
+            // case RenderTargetViewDimension.Texture2DMS: break;
+            //
+            // case RenderTargetViewDimension.Texture2DMSArray:
+            //     ref readonly var tex2dmsarr = ref desc.Texture2DMSArray;
+            //
+            //     rtvdesc.Texture2DMSArray = new() {
+            //         FirstArraySlice = tex2dmsarr.FirstArraySlice,
+            //         ArraySize = tex2dmsarr.ArraySize,
+            //     };
+            //     break;
 
             case RenderTargetViewDimension.Texture3D:
-                ref readonly var tex3d = ref descriptor.Texture3D;
+                ref readonly var tex3d = ref desc.Texture3D;
 
-                desc.Texture3D = new() {
+                rtvdesc.Texture3D = new() {
                     MipSlice = tex3d.MipSlice,
                     FirstWSlice = tex3d.FirstWSlice,
                     WSize = tex3d.WSize,
                 };
                 break;
-        };
-
-        context.Device->CreateRenderTargetView((ID3D12Resource*)resource.NativeResource.Handle, &desc, handle);
-        NativeView = new(handle.Ptr);
+        }
+        
+        Handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Rtv).Allocate();
+        context.Device->CreateRenderTargetView((ID3D12Resource*)texture.NativeResourceHandle, &rtvdesc, Handle);
         _refcount = 1;
     }
 
     protected override void Dispose() {
-        NativeView = default;
+        Handle = default;
     }
 }

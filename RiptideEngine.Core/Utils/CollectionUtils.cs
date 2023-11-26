@@ -1,4 +1,6 @@
-﻿namespace RiptideEngine.Core.Utils;
+﻿using System.Runtime.InteropServices;
+
+namespace RiptideEngine.Core.Utils;
 
 public static unsafe class CollectionUtils {
 #pragma warning disable CS0649
@@ -19,5 +21,11 @@ public static unsafe class CollectionUtils {
 
         pLayout1->Version++;
         pLayout2->Version++;
+    }
+
+    public static void Add<T>(this List<T> list, ReadOnlySpan<T> span) {
+        var lc = list.Count;
+        CollectionsMarshal.SetCount(list, list.Count + span.Length);
+        span.CopyTo(CollectionsMarshal.AsSpan(list)[lc..]);
     }
 }

@@ -14,7 +14,7 @@ internal static unsafe class D3D12Convert {
     public static bool TryConvert(ResourceRangeType input, out DescriptorRangeType output) {
         switch (input) {
             case ResourceRangeType.ConstantBuffer: output = DescriptorRangeType.Cbv; return true;
-            case ResourceRangeType.ResourceView: output = DescriptorRangeType.Srv; return true;
+            case ResourceRangeType.ShaderResourceView: output = DescriptorRangeType.Srv; return true;
             case ResourceRangeType.UnorderedAccess: output = DescriptorRangeType.Uav; return true;
             case ResourceRangeType.Sampler: output = DescriptorRangeType.Sampler; return true;
         }
@@ -230,20 +230,6 @@ internal static unsafe class D3D12Convert {
             default: output = default; return false;
         }
     }
-    public static D3D12ResourceStates Convert(ResourceStates input) {
-        return
-            (input.HasFlag(ResourceStates.ConstantBuffer) ? D3D12ResourceStates.VertexAndConstantBuffer : default) |
-            (input.HasFlag(ResourceStates.IndexBuffer) ? D3D12ResourceStates.IndexBuffer : default) |
-            (input.HasFlag(ResourceStates.ShaderResource) ? D3D12ResourceStates.AllShaderResource : default) |
-            (input.HasFlag(ResourceStates.UnorderedAccess) ? D3D12ResourceStates.UnorderedAccess : default) |
-            (input.HasFlag(ResourceStates.RenderTarget) ? D3D12ResourceStates.RenderTarget : default) |
-            (input.HasFlag(ResourceStates.CopySource) ? D3D12ResourceStates.CopySource : default) |
-            (input.HasFlag(ResourceStates.CopyDestination) ? D3D12ResourceStates.CopyDest : default) |
-            (input.HasFlag(ResourceStates.DepthWrite) ? D3D12ResourceStates.DepthWrite : default) |
-            (input.HasFlag(ResourceStates.DepthRead) ? D3D12ResourceStates.DepthRead : default) |
-            (input.HasFlag(ResourceStates.Present) ? D3D12ResourceStates.Present : default)
-            ;
-    }
 
     public static bool TryConvert(TextureAddressingMode input, out TextureAddressMode output) {
         switch (input) {
@@ -253,5 +239,15 @@ internal static unsafe class D3D12Convert {
             case TextureAddressingMode.Border: output = TextureAddressMode.Border; return true;
             default: output = default; return false;
         }
+    }
+
+    public static ResourceStates Convert(ResourceTranslateStates states) {
+        ResourceStates output = ResourceStates.Common;
+
+        output |= (ResourceStates)((int)(states & (ResourceTranslateStates.ConstantBuffer | ResourceTranslateStates.IndexBuffer | ResourceTranslateStates.RenderTarget | ResourceTranslateStates.UnorderedAccess | ResourceTranslateStates.DepthWrite | ResourceTranslateStates.DepthRead)) >> 1);
+        output |= states.HasFlag(ResourceTranslateStates.ShaderResource) ? ResourceStates.AllShaderResource : 0;
+        output |= (ResourceStates)((int)(states & (ResourceTranslateStates.CopyDestination | ResourceTranslateStates.CopySource)) << 1);
+        
+        return output;
     }
 }

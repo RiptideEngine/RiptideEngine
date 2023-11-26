@@ -3,10 +3,10 @@
 public readonly record struct ResourceDependency(string Key, ImportingLocation Location, Type ResourceType);
 
 public sealed class ImportingContext {
-    private readonly Stack<Dictionary<string, DependencyProfile>> _dependencies = [];
+    private readonly Stack<Dictionary<string, DependencyProfile>> _dependencies = new();
 
     public void PushDependencyScope() {
-        _dependencies.Push([]);
+        _dependencies.Push(new());
     }
 
     public void AddResourceDependency(ResourceDependency dependency) {

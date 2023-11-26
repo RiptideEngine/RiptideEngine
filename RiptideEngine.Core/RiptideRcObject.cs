@@ -3,7 +3,7 @@
 namespace RiptideEngine.Core;
 
 /// <summary>
-/// Base class of every reference-counted <see cref="RiptideObject"/>.
+/// Base class of every reference-counted objects.
 /// </summary>
 public abstract class RiptideRcObject : RiptideObject, IReferenceCount {
     protected ulong _refcount = 1;

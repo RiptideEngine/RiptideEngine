@@ -1,5 +1,4 @@
-﻿using RiptideEngine.Core;
+﻿namespace RiptideRendering;
 
-namespace RiptideRendering;
-
-public abstract class RenderingObject : RiptideRcObject { }
+public abstract class RenderingObject : RiptideRcObject {
+}

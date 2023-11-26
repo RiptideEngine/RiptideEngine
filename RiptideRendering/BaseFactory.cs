@@ -48,16 +48,41 @@ public abstract class BaseFactory {
 
     public abstract GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode);
 
-    public abstract PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature resourceSignature, in PipelineStateDescriptor descriptor);
+    public abstract PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature resourceSignature, in PipelineStateDescription description);
 
     public abstract CommandList CreateCommandList();
 
-    public GpuResource CreateResource(in ResourceDescriptor descriptor) {
-        return CreateResourceImpl(descriptor);
+    public GpuBuffer CreateBuffer(in BufferDescription desc) {
+        return CreateBufferImpl(desc);
     }
-    protected abstract GpuResource CreateResourceImpl(in ResourceDescriptor descriptor);
+    protected abstract GpuBuffer CreateBufferImpl(in BufferDescription desc);
 
-    public abstract ResourceView CreateResourceView(GpuResource texture, ResourceViewDescriptor descriptor);
-    public abstract RenderTargetView CreateRenderTargetView(GpuResource texture, RenderTargetViewDescriptor descriptor);
-    public abstract DepthStencilView CreateDepthStencilView(GpuResource texture, DepthStencilViewDescriptor descriptor);
+    public GpuTexture CreateTexture(in TextureDescription desc) {
+        return CreateTextureImpl(desc);
+    }
+    protected abstract GpuTexture CreateTextureImpl(in TextureDescription desc);
+
+    public ShaderResourceView CreateShaderResourceView(GpuResource resource, in ShaderResourceViewDescription desc) {
+        if (!desc.Dimension.IsDefined()) throw new ArgumentException($"Failed to create {nameof(ShaderResourceView)} with undefined dimension.", nameof(desc));
+        if (!desc.Format.IsDefined()) throw new ArgumentException($"Failed to create {nameof(ShaderResourceView)} with undefined format type.", nameof(desc));
+
+        return CreateShaderResourceViewImpl(resource, desc);
+    }
+    protected abstract ShaderResourceView CreateShaderResourceViewImpl(GpuResource resource, in ShaderResourceViewDescription desc);
+    
+    public RenderTargetView CreateRenderTargetView(GpuTexture texture, in RenderTargetViewDescription desc) {
+        if (!desc.Dimension.IsDefined()) throw new ArgumentException($"Failed to create {nameof(RenderTargetView)} with undefined dimension.", nameof(desc));
+        if (!desc.Format.IsDefined()) throw new ArgumentException($"Failed to create {nameof(RenderTargetView)} with undefined format type.", nameof(desc));
+
+        return CreateRenderTargetViewImpl(texture, desc);
+    }
+    protected abstract RenderTargetView CreateRenderTargetViewImpl(GpuTexture texture, in RenderTargetViewDescription desc);
+    
+    public DepthStencilView CreateDepthStencilView(GpuTexture texture, in DepthStencilViewDescription desc) {
+        if (!desc.Dimension.IsDefined()) throw new ArgumentException($"Failed to create {nameof(DepthStencilView)} with undefined dimension.", nameof(desc));
+        if (!desc.Format.IsDepthFormat()) throw new ArgumentException($"{nameof(DepthStencilView)} must be created with Depth format.", nameof(desc));
+
+        return CreateDepthStencilViewImpl(texture, desc);
+    }
+    protected abstract DepthStencilView CreateDepthStencilViewImpl(GpuTexture texture, in DepthStencilViewDescription desc);
 }

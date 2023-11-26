@@ -1,8 +1,6 @@
 ﻿namespace RiptideEngine.Audio;
 
-public sealed unsafe partial class AudioSource : RiptideObject, IReferenceCount {
-    private ulong _refcount;
-
+public sealed unsafe partial class AudioSource : RiptideRcObject {
     private uint _source;
 
     private AudioClip? _clip;
@@ -143,24 +141,7 @@ public sealed unsafe partial class AudioSource : RiptideObject, IReferenceCount 
         _impl.Stop();
     }
 
-    public ulong IncrementReference() {
-        return _refcount == 0 ? 0 : ++_refcount;
-    }
-
-    public ulong DecrementReference() {
-        switch (_refcount) {
-            case 0: return 0;
-            case 1:
-                Dispose();
-                _refcount = 0;
-                return 0;
-            default: return --_refcount;
-        }
-    }
-
-    public ulong GetReferenceCount() => _refcount;
-
-    private void Dispose() {
+    protected override void Dispose() {
         _impl?.Stop();
 
         if (_clip != null) {
