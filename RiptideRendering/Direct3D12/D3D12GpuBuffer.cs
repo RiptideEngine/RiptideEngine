@@ -1,6 +1,9 @@
-﻿namespace RiptideRendering.Direct3D12; 
+﻿using Silk.NET.Direct3D12;
+using Silk.NET.DXGI;
 
-internal sealed unsafe class D3D12GpuBuffer : GpuBuffer {
+namespace RiptideRendering.Direct3D12;
+
+internal sealed unsafe class D3D12GpuBuffer : GpuBuffer, IResourceStateTracking {
     public const string UnnamedResource = $"<Unnamed {nameof(D3D12GpuBuffer)}>.{nameof(NativeResourceHandle)}";
     
     private D3D12RenderingContext _context;
@@ -24,12 +27,13 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer {
             if (Interlocked.Read(ref _refcount) == 0) return;
             
             base.Name = value;
-            D3D12Helper.SetName((ID3D12Resource*)NativeResourceHandle, value == null ? UnnamedResource : $"{value}.{nameof(NativeResourceHandle)}");
+            Helper.SetName((ID3D12Resource*)NativeResourceHandle, value == null ? UnnamedResource : $"{value}.{nameof(NativeResourceHandle)}");
         }
     }
 
-    internal ResourceStates UsageState { get; set; }
-    internal ResourceStates TransitioningState { get; set; }
+    public ID3D12Resource* TransitionResource => (ID3D12Resource*)NativeResourceHandle;
+    public ResourceStates UsageState { get; set; }
+    public ResourceStates TransitioningState { get; set; }
     
     public D3D12GpuBuffer(D3D12RenderingContext context, BufferDescription desc) {
         HeapProperties hprops = new() {
@@ -54,10 +58,10 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer {
         };
         
         using ComPtr<ID3D12Resource> pOutput = default;
-        int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, D3D12ResourceStates.Common, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
+        int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
         Marshal.ThrowExceptionForHR(hr);
         
-        D3D12Helper.SetName(pOutput.Handle, UnnamedResource);
+        Helper.SetName(pOutput.Handle, UnnamedResource);
 
         NativeResourceHandle = (nint)pOutput.Detach();
         _context = context;
@@ -69,7 +73,7 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer {
     }
 
     protected override void Dispose() {
-        _context.AddToDeferredDestruction((ID3D12Resource*)NativeResourceHandle);
+        _context.DestroyDeferred((ID3D12Resource*)NativeResourceHandle);
         NativeResourceHandle = nint.Zero;
 
         _context = null!;

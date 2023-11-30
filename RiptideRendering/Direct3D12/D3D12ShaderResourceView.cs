@@ -1,14 +1,16 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+using Silk.NET.DXGI;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
     public CpuDescriptorHandle Handle { get; private set; }
     
-    [SkipLocalsInit]
     public D3D12ShaderResourceView(D3D12RenderingContext context, GpuResource resource, ShaderResourceViewDescription desc) {
         Unsafe.SkipInit(out ShaderResourceViewDesc srvdesc);
         ID3D12Resource* pResource;
 
-        srvdesc.Shader4ComponentMapping = D3D12Helper.DefaultShader4ComponentMapping;
+        srvdesc.Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping;
 
         switch (desc.Dimension) {
             case ShaderResourceViewDimension.Buffer: {
@@ -32,7 +34,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
 
                 ref readonly var tex1d = ref desc.Texture1D;
@@ -49,7 +51,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var tex1darr = ref desc.Texture1DArray;
@@ -69,7 +71,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var tex2d = ref desc.Texture2D;
@@ -87,7 +89,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var tex2darr = ref desc.Texture2DArray;
@@ -118,7 +120,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var tex3d = ref desc.Texture3D;
@@ -136,7 +138,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var texcube = ref desc.TextureCube;
@@ -153,7 +155,7 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
                 if (resource is not D3D12GpuTexture d3d12texture) throw new ArgumentException("Texture object is expected.");
                 pResource = (ID3D12Resource*)d3d12texture.NativeResourceHandle;
                 
-                bool convert = D3D12Convert.TryConvert(desc.Format, out srvdesc.Format);
+                bool convert = Converting.TryConvert(desc.Format, out srvdesc.Format);
                 Debug.Assert(convert);
                 
                 ref readonly var texcubearr = ref desc.TextureCubeArray;
@@ -171,8 +173,8 @@ internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
 
             default: throw new UnreachableException();
         }
-        
-        Handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.CbvSrvUav).Allocate();
+
+        Handle = context.AllocateCpuDescriptor(DescriptorHeapType.CbvSrvUav);
         context.Device->CreateShaderResourceView(pResource, &srvdesc, Handle);
         
         _refcount = 1;

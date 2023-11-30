@@ -1,80 +1,61 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
 
-internal sealed unsafe class CommandAllocatorPool : IDisposable {
-    private struct ReadyAllocator {
-        public ulong FenceValue;
-        public ID3D12CommandAllocator* Allocator;
+namespace RiptideRendering.Direct3D12;
 
-        public ReadyAllocator(ulong fenceValue, ID3D12CommandAllocator* pAllocator) {
-            FenceValue = fenceValue;
-            Allocator = pAllocator;
-        }
-    }
+internal sealed unsafe class CommandAllocatorPool(D3D12RenderingContext context, CommandListType type) : IDisposable {
+    private readonly List<nint> _allocators = [];
+    private readonly Queue<RetiredAllocator> _retiredAllocators = [];
+    private readonly Stack<nint> _availableAllocators = [];
 
-    private readonly List<nint> _pool;
-    private readonly Queue<ReadyAllocator> _readyAllocators;
-
-    private D3D12RenderingContext _context;
-    private readonly object _lock;
-    private readonly CommandListType _type;
-
-    public CommandAllocatorPool(D3D12RenderingContext context, CommandListType type) {
-        _pool = new();
-        _readyAllocators = new();
-
-        _lock = new();
-        _type = type;
-
-        _context = context;
-    }
+    private readonly object _lock = new();
 
     public ID3D12CommandAllocator* Request(ulong completedFenceValue) {
         lock (_lock) {
-            if (_readyAllocators.TryPeek(out var peeked)) {
-                if (peeked.FenceValue <= completedFenceValue) {
-                    var allocator = _readyAllocators.Dequeue().Allocator;
-                    Debug.Assert(allocator->Reset() >= 0, "CommandAllocatorPool.Request: Failed to reset ID3D12CommandAllocator.");
-
-                    return allocator;
-                }
+            ID3D12CommandAllocator* allocator;
+            HResult hr;
+            
+            while (_retiredAllocators.TryPeek(out var retired)) {
+                if (completedFenceValue >= retired.CompleteFenceValue) {
+                    allocator = _retiredAllocators.Dequeue().Allocator;
+                    hr = allocator->Reset();
+                    Marshal.ThrowExceptionForHR(hr);
+                    
+                    _availableAllocators.Push((nint)allocator);
+                } else break;
             }
 
-            ID3D12CommandAllocator* pOutput = default;
-            int hr = _context.Device->CreateCommandAllocator(_type, SilkMarshal.GuidPtrOf<ID3D12CommandAllocator>(), (void**)&pOutput);
+            if (_availableAllocators.TryPop(out var pop)) {
+                return (ID3D12CommandAllocator*)pop;
+            }
+
+            hr = context.Device->CreateCommandAllocator(type, SilkMarshal.GuidPtrOf<ID3D12CommandAllocator>(), (void**)&allocator);
             Marshal.ThrowExceptionForHR(hr);
 
-            _pool.Add((nint)pOutput);
+            _allocators.Add((nint)allocator);
 
-            _context.Logger?.Log(LoggingType.Info, $"Direct3D12 - CommandAllocatorPool: New allocator 0x{(nint)pOutput:X8} created at fence value {completedFenceValue}.");
-
-            return pOutput;
+            return allocator;
         }
     }
 
-    public void Return(ulong fenceValue, ID3D12CommandAllocator* allocator) {
+    public void Return(ID3D12CommandAllocator* allocator, ulong fenceValue) {
         lock (_lock) {
-            _readyAllocators.Enqueue(new(fenceValue, allocator));
+            _retiredAllocators.Enqueue(new(allocator, fenceValue));
         }
     }
-
-    private void Dispose(bool disposing) {
-        if (_context == null) return;
-
-        foreach (var ptr in _pool) {
-            ((ID3D12CommandAllocator*)ptr)->Release();
-        }
-        _pool.Clear();
-        _readyAllocators.Clear();
-
-        _context = null!;
-    }
-
-    ~CommandAllocatorPool() {
-        Dispose(disposing: false);
-    }
-
+    
     public void Dispose() {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        lock (_lock) {
+            foreach (var allocator in _allocators) {
+                ((ID3D12CommandAllocator*)allocator)->Release();
+            }
+
+            _allocators.Clear();
+            _retiredAllocators.Clear();
+        }
+    }
+    
+    private readonly struct RetiredAllocator(ID3D12CommandAllocator* allocator, ulong completeFenceValue) {
+        public readonly ID3D12CommandAllocator* Allocator = allocator;
+        public readonly ulong CompleteFenceValue = completeFenceValue;
     }
 }

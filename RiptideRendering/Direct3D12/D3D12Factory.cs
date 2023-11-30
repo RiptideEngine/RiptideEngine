@@ -1,49 +1,31 @@
 ﻿namespace RiptideRendering.Direct3D12;
 
-internal sealed unsafe class D3D12Factory : BaseFactory {
-    private readonly D3D12RenderingContext _context;
+internal sealed class D3D12Factory(D3D12RenderingContext context) : Factory {
+    protected override ResourceSignature CreateResourceSignatureImpl(ResourceSignatureDescription description) => new D3D12ResourceSignature(context, description);
+    public override GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) => new D3D12GraphicalShader(context, vsBytecode, psBytecode, hsBytecode, dsBytecode);
+    public override PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature resourceSignature, in PipelineStateDescription description) {
+        Debug.Assert(shader is D3D12GraphicalShader, "shader is D3D12GraphicalShader");
+        Debug.Assert(resourceSignature is D3D12ResourceSignature, "resourceSignature is D3D12ResourceSignature");
 
-    public D3D12Factory(D3D12RenderingContext context) {
-        _context = context;
+        return new D3D12PipelineState(context, Unsafe.As<D3D12GraphicalShader>(shader), Unsafe.As<D3D12ResourceSignature>(resourceSignature), description);
     }
-
-    public override PipelineState CreatePipelineState(GraphicalShader shader, ResourceSignature pipelineResource, in PipelineStateDescription description) {
-        if (shader is not D3D12GraphicalShader d3d12shader) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GraphicalShader", "Direct3D12's GraphicalShader"), nameof(shader));
-        if (pipelineResource is not D3D12ResourceSignature d3d12pr) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "PipelineResource", "Direct3D12's PipelineResource"), nameof(pipelineResource));
-
-        return new D3D12PipelineState(_context, d3d12shader, d3d12pr, description);
-    }
-
-    protected override ResourceSignature CreateResourceSignatureImpl(ResourceSignatureDescriptor descriptor) {
-        return new D3D12ResourceSignature(_context, descriptor);
-    }
-
-    public override GraphicalShader CreateGraphicalShader(ReadOnlySpan<byte> vsBytecode, ReadOnlySpan<byte> psBytecode, ReadOnlySpan<byte> hsBytecode, ReadOnlySpan<byte> dsBytecode) {
-        return new D3D12GraphicalShader(_context, vsBytecode, psBytecode, hsBytecode, dsBytecode);
-    }
-
-    public override CommandList CreateCommandList() {
-        return _context.CommandListPool.Request();
-    }
-
-    protected override GpuBuffer CreateBufferImpl(in BufferDescription desc) => new D3D12GpuBuffer(_context, desc);
-    protected override GpuTexture CreateTextureImpl(in TextureDescription desc) => new D3D12GpuTexture(_context, desc);
-
+    public override GraphicsCommandList CreateGraphicsCommandList() => new D3D12GraphicsCommandList(context);
+    public override CopyCommandList CreateCopyCommandList() => new D3D12CopyCommandList(context);
+    protected override GpuBuffer CreateBufferImpl(in BufferDescription desc) => new D3D12GpuBuffer(context, desc);
+    protected override GpuTexture CreateTextureImpl(in TextureDescription desc) => new D3D12GpuTexture(context, desc);
     protected override ShaderResourceView CreateShaderResourceViewImpl(GpuResource resource, in ShaderResourceViewDescription desc) {
-        if (resource is not D3D12GpuTexture && resource is not D3D12GpuBuffer) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuResource", "Direct3D12's GpuBuffer or GpuTexture"));
+        Debug.Assert(resource is D3D12GpuBuffer or D3D12GpuTexture, "resource is D3D12GpuBuffer or D3D12GpuTexture");
 
-        return new D3D12ShaderResourceView(_context, resource, desc);
+        return new D3D12ShaderResourceView(context, resource, desc);
     }
-
     protected override RenderTargetView CreateRenderTargetViewImpl(GpuTexture texture, in RenderTargetViewDescription desc) {
-        if (texture is not D3D12GpuTexture d3d12texture) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuTexture", "Direct3D12's GpuTexture"));
+        Debug.Assert(texture is D3D12GpuTexture, "texture is D3D12GpuTexture");
 
-        return new D3D12RenderTargetView(_context, d3d12texture, desc);
+        return new D3D12RenderTargetView(context, Unsafe.As<D3D12GpuTexture>(texture), desc);
     }
-
     protected override DepthStencilView CreateDepthStencilViewImpl(GpuTexture texture, in DepthStencilViewDescription desc) {
-        if (texture is not D3D12GpuTexture d3d12texture) throw new ArgumentException(string.Format(ExceptionMessages.InvalidPlatformObjectArgument, "GpuTexture", "Direct3D12's GpuTexture"));
+        Debug.Assert(texture is D3D12GpuTexture, "texture is D3D12GpuTexture");
 
-        return new D3D12DepthStencilView(_context, d3d12texture, desc);
+        return new D3D12DepthStencilView(context, Unsafe.As<D3D12GpuTexture>(texture), desc);
     }
 }

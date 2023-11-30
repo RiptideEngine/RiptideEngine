@@ -33,6 +33,7 @@
 	    <AutoGen>True</AutoGen>
 	    <DependentUpon>ExceptionMessages.resx</DependentUpon>
 	  </Compile>
+	  <Compile Remove="Direct3D12 (Obsoleted)\**" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -40,6 +41,7 @@
 	    <Generator>ResXFileCodeGenerator</Generator>
 	    <LastGenOutput>ExceptionMessages.Designer.cs</LastGenOutput>
 	  </EmbeddedResource>
+	  <EmbeddedResource Remove="Direct3D12 (Obsoleted)\**" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -52,6 +54,10 @@
 	  </Reference>
 
 		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Direct3D12 (Obsoleted)\**" />
 	</ItemGroup>
 
 </Project>

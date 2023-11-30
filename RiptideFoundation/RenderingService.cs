@@ -1,11 +1,11 @@
 ﻿namespace RiptideFoundation;
 
 public interface IRenderingService : IRiptideService {
-    BaseRenderingContext Context { get; }
+    RenderingContext Context { get; }
 }
 
 public sealed class RenderingService : IRenderingService {
-    public BaseRenderingContext Context { get; }
+    public RenderingContext Context { get; }
 
     public RenderingService(ContextOptions options) {
         Context = RenderingContext.CreateContext(options) ?? throw new ArgumentException("Failed to create rendering option.");

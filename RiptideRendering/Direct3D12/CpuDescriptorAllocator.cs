@@ -1,96 +1,91 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
 
-/// <summary>
-/// Descriptor allocator class that used for creating Resource Views.
-/// </summary>
+namespace RiptideRendering.Direct3D12;
+
 internal sealed unsafe class CpuDescriptorAllocator : IDisposable {
-    private const uint DefaultNumDescriptors = 128;
+    private readonly List<nint> _finishedHeaps;
 
-    private readonly List<nint> _pool;
-    private ID3D12DescriptorHeap* pCurrentHeap;
-    private CpuDescriptorHandle _heapStart;
-    private uint _suballocateIndex;
+    private Allocator[] _allocators;
+    private readonly D3D12RenderingContext _context;
+    private readonly object[] _locks;
 
-    private D3D12RenderingContext _context;
-    private readonly DescriptorHeapType _heapType;
-    private readonly uint _incrementSize;
-
-    private readonly object _lock = new();
-
-    public CpuDescriptorAllocator(D3D12RenderingContext context, DescriptorHeapType type) {
+    public CpuDescriptorAllocator(D3D12RenderingContext context) {
         _context = context;
-        _incrementSize = context.Device->GetDescriptorHandleIncrementSize(type);
-        _heapType = type;
-        _pool = new();
 
-        ID3D12DescriptorHeap* pOutput;
-        CreateHeap(&pOutput);
+        _finishedHeaps = [];
 
-        D3D12Helper.SetName(pOutput, $"CpuDescriptorAllocator 0");
-        _pool.Add((nint)pOutput);
+        _allocators = new Allocator[(int)DescriptorHeapType.NumTypes];
+        _locks = new object[(int)DescriptorHeapType.NumTypes];
+        
+        _allocators[0] = new(context, DescriptorHeapType.CbvSrvUav, 256);
+        _allocators[1] = new(context, DescriptorHeapType.Sampler, 256);
+        _allocators[2] = new(context, DescriptorHeapType.Rtv, 256);
+        _allocators[3] = new(context, DescriptorHeapType.Dsv, 256);
 
-        _heapStart = pOutput->GetCPUDescriptorHandleForHeapStart();
-        _suballocateIndex = 0;
-
-        pCurrentHeap = pOutput;
+        _locks[0] = new();
+        _locks[1] = new();
+        _locks[2] = new();
+        _locks[3] = new();
     }
 
-    public CpuDescriptorHandle Allocate() {
-        lock (_lock) {
-            if (_suballocateIndex >= DefaultNumDescriptors) {
-                ID3D12DescriptorHeap* pOutput;
-                CreateHeap(&pOutput);
+    public CpuDescriptorHandle Allocate(DescriptorHeapType type) {
+        Debug.Assert(type is >= DescriptorHeapType.CbvSrvUav and <= DescriptorHeapType.Dsv);
 
-                D3D12Helper.SetName(pOutput, $"CpuDescriptorAllocator {_pool.Count}");
+        lock (_locks[(int)type]) {
+            ref var allocator = ref _allocators[(int)type];
 
-                _pool.Add((nint)pOutput);
+            if (allocator.TryAllocate(out var handle)) return handle;
+            
+            _finishedHeaps.Add((nint)allocator.Heap.Detach());
+            allocator = new(_context, type, 256);
 
-                _heapStart = pOutput->GetCPUDescriptorHandleForHeapStart();
-                _suballocateIndex = 0;
+            bool alloc = allocator.TryAllocate(out handle);
+            Debug.Assert(alloc);
 
-                pCurrentHeap = pOutput;
-            }
-
-            var outputHandle = _heapStart;
-
-            outputHandle.Offset(_suballocateIndex, _incrementSize);
-            _suballocateIndex++;
-
-            return outputHandle;
+            return handle;
         }
-    }
-
-    private void CreateHeap(ID3D12DescriptorHeap** ppOutput) {
-        int hr = _context.Device->CreateDescriptorHeap(new DescriptorHeapDesc() {
-            Type = _heapType,
-            NumDescriptors = DefaultNumDescriptors,
-            NodeMask = 1,
-            Flags = DescriptorHeapFlags.None,
-        }, SilkMarshal.GuidPtrOf<ID3D12DescriptorHeap>(), (void**)ppOutput);
-        Marshal.ThrowExceptionForHR(hr);
-
-        _context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(CpuDescriptorAllocator)}: Descriptor heap type {SilkHelper.GetNativeName(_heapType, "Name")["D3D12_DESCRIPTOR_HEAP_TYPE_".Length..]} created.");
-    }
-
-    private void Dispose(bool disposing) {
-        if (_context == null) return;
-
-        foreach (var heap in _pool) {
-            ((ID3D12DescriptorHeap*)heap)->Release();
-        }
-        pCurrentHeap = null!;
-        _suballocateIndex = 0;
-        _heapStart = D3D12Helper.UnknownCpuHandle;
-
-        _context = null!;
-    }
-
-    ~CpuDescriptorAllocator() {
-        Dispose(disposing: false);
     }
 
     public void Dispose() {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        foreach (var heap in _finishedHeaps) {
+            ((ID3D12DescriptorHeap*)heap)->Release();
+        }
+        _finishedHeaps.Clear();
+        _allocators[0].Heap.Release();
+        _allocators[1].Heap.Release();
+        _allocators[2].Heap.Release();
+        _allocators[3].Heap.Release();
+
+        _allocators = [];
+    }
+
+    private struct Allocator {
+        public ComPtr<ID3D12DescriptorHeap> Heap;
+        private CpuDescriptorHandle StartHandle;
+        private CpuDescriptorHandle EndHandle;
+        private uint _incrementSize;
+        
+        public Allocator(D3D12RenderingContext context, DescriptorHeapType type, uint numDescriptors) {
+            HResult hr = context.Device->CreateDescriptorHeap(new DescriptorHeapDesc {
+                Type = type,
+                NumDescriptors = numDescriptors,
+            }, SilkMarshal.GuidPtrOf<ID3D12DescriptorHeap>(), (void**)Heap.GetAddressOf());
+            Marshal.ThrowExceptionForHR(hr);
+
+            _incrementSize = context.Device->GetDescriptorHandleIncrementSize(type);
+            StartHandle = Heap.GetCPUDescriptorHandleForHeapStart();
+            EndHandle = new() { Ptr = StartHandle.Ptr + _incrementSize * numDescriptors };
+        }
+
+        public bool TryAllocate(out CpuDescriptorHandle handle) {
+            if (StartHandle.Ptr >= EndHandle.Ptr) {
+                handle = default;
+                return false;
+            }
+
+            handle = StartHandle;
+            StartHandle.Ptr += _incrementSize;
+            return true;
+        }
     }
 }

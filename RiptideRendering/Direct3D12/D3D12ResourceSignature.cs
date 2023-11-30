@@ -1,4 +1,7 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+using System.Buffers;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
     private ComPtr<ID3D12RootSignature> pRoot;
@@ -7,9 +10,9 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
     public ID3D12RootSignature* RootSignature => pRoot;
     public ReadOnlySpan<DescriptorTableInfo> TableInfos => _tableInfos;
 
-    public D3D12ResourceSignature(D3D12RenderingContext context, ResourceSignatureDescriptor descriptor) {
-        ReadOnlySpan<ResourceParameter> parameterDescs = descriptor.Parameters;
-        ReadOnlySpan<ImmutableSamplerDescriptor> samplerDescs = descriptor.ImmutableSamplers;
+    public D3D12ResourceSignature(D3D12RenderingContext context, ResourceSignatureDescription description) {
+        ReadOnlySpan<ResourceParameter> parameterDescs = description.Parameters;
+        ReadOnlySpan<ImmutableSamplerDescription> samplerDescs = description.ImmutableSamplers;
 
         RootParameter[] parameters = ArrayPool<RootParameter>.Shared.Rent(parameterDescs.Length);
         StaticSamplerDesc[] samplers = ArrayPool<StaticSamplerDesc>.Shared.Rent(samplerDescs.Length);
@@ -39,12 +42,12 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
                         SamplerFilter.Anisotropic => Filter.Anisotropic,
                         SamplerFilter.Point or _ => Filter.MinMagMipPoint,
                     },
-                    AddressU = D3D12Convert.TryConvert(input.AddressU, out var addr) ? addr : TextureAddressMode.Wrap,
-                    AddressV = D3D12Convert.TryConvert(input.AddressU, out addr) ? addr : TextureAddressMode.Wrap,
-                    AddressW = D3D12Convert.TryConvert(input.AddressU, out addr) ? addr : TextureAddressMode.Wrap,
+                    AddressU = Converting.TryConvert(input.AddressU, out var addr) ? addr : TextureAddressMode.Wrap,
+                    AddressV = Converting.TryConvert(input.AddressV, out addr) ? addr : TextureAddressMode.Wrap,
+                    AddressW = Converting.TryConvert(input.AddressW, out addr) ? addr : TextureAddressMode.Wrap,
 
                     BorderColor = StaticBorderColor.TransparentBlack,
-                    ComparisonFunc = D3D12Convert.TryConvert(input.ComparisonOp, out var comp) ? comp : throw new ArgumentException($"Undefined ImmutableSampler's ComparisonOperator at index {s}."),
+                    ComparisonFunc = Converting.TryConvert(input.ComparisonOp, out var comp) ? comp : throw new ArgumentException($"Undefined ImmutableSampler's ComparisonOperator at index {s}."),
                     MinLOD = input.MinLod,
                     MaxLOD = input.MaxLod,
                     MaxAnisotropy = input.MaxAnisotropy,
@@ -85,7 +88,7 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
                                 NumDescriptors = range.NumResources,
                                 RegisterSpace = range.Space,
                                 BaseShaderRegister = range.BaseRegister,
-                                RangeType = D3D12Convert.TryConvert(range.Type, out var cvt) ? cvt : throw new ArgumentException($"Failed to convert ResourceRangeType value {range.Type} to correspond Direct3D12's value."),
+                                RangeType = Converting.TryConvert(range.Type, out var cvt) ? cvt : throw new ArgumentException($"Failed to convert ResourceRangeType value {range.Type} to correspond Direct3D12's value."),
                             };
                         }
 
@@ -114,8 +117,16 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
                         NumStaticSamplers = (uint)samplerDescs.Length,
                         PStaticSamplers = pSamplers,
                     };
+                    
+                    using ComPtr<ID3D10Blob> pSerialized = default;
+                    using ComPtr<ID3D10Blob> pError = default;
+                    HResult hr = context.D3D12.SerializeRootSignature(&rdesc, D3DRootSignatureVersion.Version10, pSerialized.GetAddressOf(), pError.GetAddressOf());
+                    if (hr < 0) {
+                        throw new($"Failed to serialize Root Signature. Error: '{new string((sbyte*)pError.GetBufferPointer(), 0, (int)pError.GetBufferSize())}'.");
+                    }
 
-                    context.RootSigStorage.Get(rdesc, pRoot.GetAddressOf());
+                    hr = context.Device->CreateRootSignature(1, pSerialized.GetBufferPointer(), pSerialized.GetBufferSize(), SilkMarshal.GuidPtrOf<ID3D12RootSignature>(), (void**)pRoot.GetAddressOf());
+                    Marshal.ThrowExceptionForHR(hr);
                 }
             }
 
@@ -128,8 +139,8 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
         _tableInfos = new DescriptorTableInfo[numTables];
         int tableIndex = 0;
 
-        for (int i = 0; i < descriptor.Parameters.Length; i++) {
-            ref readonly var parameter = ref descriptor.Parameters[i];
+        for (int i = 0; i < description.Parameters.Length; i++) {
+            ref readonly var parameter = ref description.Parameters[i];
             if (parameter.Type != ResourceParameterType.Table) continue;
 
             ref readonly var table = ref parameter.Table;
@@ -147,7 +158,9 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
     }
 
     protected override void Dispose() {
+        pRoot.Release();
         pRoot = default;
+        
         _tableInfos = [];
     }
 
@@ -155,6 +168,6 @@ internal sealed unsafe class D3D12ResourceSignature : ResourceSignature {
     /// Contains information of descriptor tables that <see cref="DescriptorCommitter"/> can consume.
     /// </summary>
     /// <param name="ParameterIndex">Parameter index.</param>
-    /// <param name="Bitmap">Bitfield of the table. Bits 0-31 represent amount of descriptors. Bit 32 determine whether table is sampler or resource, 1 if sampler.</param>
-    public readonly record struct DescriptorTableInfo(uint ParameterIndex, uint Bitmap);
+    /// <param name="Bitfield">Bitfield of the table. Bits 0-31 represent amount of descriptors. Bit 32 determine whether table is sampler or resource, 1 if sampler.</param>
+    public readonly record struct DescriptorTableInfo(uint ParameterIndex, uint Bitfield);
 }

@@ -1,13 +1,14 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
     public CpuDescriptorHandle Handle { get; private set; }
     
-    [SkipLocalsInit]
     public D3D12RenderTargetView(D3D12RenderingContext context, D3D12GpuTexture texture, RenderTargetViewDescription desc) {
         Unsafe.SkipInit(out RenderTargetViewDesc rtvdesc);
         
-        var convert = D3D12Convert.TryConvert(desc.Format, out rtvdesc.Format);
+        var convert = Converting.TryConvert(desc.Format, out rtvdesc.Format);
         Debug.Assert(convert);
 
         switch (desc.Dimension) {
@@ -74,9 +75,14 @@ internal sealed unsafe class D3D12RenderTargetView : RenderTargetView {
                 };
                 break;
         }
-        
-        Handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Rtv).Allocate();
+
+        Handle = context.AllocateCpuDescriptor(DescriptorHeapType.Rtv);
         context.Device->CreateRenderTargetView((ID3D12Resource*)texture.NativeResourceHandle, &rtvdesc, Handle);
+        _refcount = 1;
+    }
+
+    public D3D12RenderTargetView(CpuDescriptorHandle handle) {
+        Handle = handle;
         _refcount = 1;
     }
 

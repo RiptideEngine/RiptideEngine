@@ -1,123 +1,114 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class CommandQueue : IDisposable {
-    private const int TypeBitshift = 58;
-
     private ComPtr<ID3D12CommandQueue> pQueue;
+
     private ComPtr<ID3D12Fence> pFence;
-    private nint hEvent;
-    private CommandAllocatorPool _allocatorPool;
+    private nint _eventHandle;
+    private ulong _lastCompletedFenceValue;
 
-    private ulong _lastCompletedFenceValue, _nextFenceValue;
+    private readonly CommandAllocatorPool _allocatorPool;
+    private readonly object _fenceLock, _eventLock;
 
-    public CommandListType Type { get; private set; }
     public ID3D12CommandQueue* Queue => pQueue;
-    public ulong NextFenceValue => _nextFenceValue;
-    public ulong CompletedValue => pFence.GetCompletedValue();
 
-    private D3D12RenderingContext _context;
+    public ulong LastCompletedFenceValue => _lastCompletedFenceValue;
+    public ulong NextFenceValue { get; private set; }
 
     public CommandQueue(D3D12RenderingContext context, CommandListType type) {
-        try {
-            int hr = context.Device->CreateCommandQueue(new CommandQueueDesc() {
-                Type = type,
-                NodeMask = 1,
-            }, SilkMarshal.GuidPtrOf<ID3D12CommandQueue>(), (void**)pQueue.GetAddressOf());
-            Marshal.ThrowExceptionForHR(hr);
+        pQueue = context.Device->CreateCommandQueue<ID3D12CommandQueue>(new CommandQueueDesc {
+            Type = type,
+        });
+        pFence = context.Device->CreateFence<ID3D12Fence>(0, FenceFlags.None);
+        pFence.Signal((ulong)type << 58);
 
-            hr = context.Device->CreateFence(0, FenceFlags.None, SilkMarshal.GuidPtrOf<ID3D12Fence>(), (void**)pFence.GetAddressOf());
-            Marshal.ThrowExceptionForHR(hr);
+        _lastCompletedFenceValue = (ulong)type << 58;
+        NextFenceValue = _lastCompletedFenceValue + 1;
+        
+        _eventHandle = SilkMarshal.CreateWindowsEvent(null, false, false, null);
+        Debug.Assert(_eventHandle != nint.Zero);
 
-            hEvent = SilkMarshal.CreateWindowsEvent(null, false, false, null);
-            if (hEvent == nint.Zero) {
-                Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
-            }
+        _allocatorPool = new(context, type);
 
-            _allocatorPool = new(context, type);
+        _fenceLock = new();
+        _eventLock = new();
+    }
 
-            hr = pFence.Signal((ulong)type << TypeBitshift);
-            Marshal.ThrowExceptionForHR(hr);
+    public ulong ExecuteCommandList(ID3D12CommandList* list) {
+        lock (_fenceLock) {
+            pQueue.ExecuteCommandLists(1, &list);
+            pQueue.Signal(pFence, NextFenceValue);
 
-            _lastCompletedFenceValue = (ulong)type << TypeBitshift;
-            _nextFenceValue = _lastCompletedFenceValue + 1;
-
-            Type = type;
-
-            _context = context;
-        } catch {
-            Dispose(true);
-            throw;
+            return NextFenceValue++;
         }
     }
 
-    public ulong ExecuteCommandList(ID3D12CommandList* pList) {
-        pQueue.ExecuteCommandLists(1, &pList);
-
-        Marshal.ThrowExceptionForHR(pQueue.Signal(pFence, _nextFenceValue));
-        return _nextFenceValue++;
-    }
-
-    public ulong ExecuteCommandLists(uint numLists, ID3D12CommandList** ppLists) {
-        pQueue.ExecuteCommandLists(numLists, ppLists);
-
-        Marshal.ThrowExceptionForHR(pQueue.Signal(pFence, _nextFenceValue));
-        return _nextFenceValue++;
-    }
-
-    public ulong IncrementFence() {
-        pQueue.Signal(pFence, _nextFenceValue);
-        return _nextFenceValue++;
-    }
-
-    public bool IsFenceCompleted(ulong fenceValue) {
+    public bool IsFenceComplete(ulong fenceValue) {
         if (fenceValue > _lastCompletedFenceValue) {
             _lastCompletedFenceValue = ulong.Max(_lastCompletedFenceValue, pFence.GetCompletedValue());
         }
 
         return fenceValue <= _lastCompletedFenceValue;
     }
+    
+    public ulong IncrementFence() {
+        lock (_fenceLock) {
+            pQueue.Signal(pFence, NextFenceValue);
+            return NextFenceValue++;
+        }
+    }
+    
+    public bool WaitForFence(ulong fenceValue) {
+        if (IsFenceComplete(fenceValue))
+            return false;
 
-    public void StallForQueue(CommandQueue queue) {
-        pQueue.Wait(queue.pFence, queue._nextFenceValue - 1);
+        lock (_eventLock) {
+            Console.WriteLine("Waiting fence: " + fenceValue);
+            
+            pFence.SetEventOnCompletion(fenceValue, (void*)_eventHandle);
+            SilkMarshal.WaitWindowsObjects(_eventHandle);
+            _lastCompletedFenceValue = fenceValue;
+
+            return true;
+        }
     }
 
-    public void WaitForIdle() { WaitForFence(IncrementFence()); }
-
-    public void WaitForFence(ulong fenceValue) {
-        if (IsFenceCompleted(fenceValue)) return;
-
-        pFence.SetEventOnCompletion(fenceValue, (void*)hEvent);
-        SilkMarshal.WaitWindowsObjects(hEvent);
-        _lastCompletedFenceValue = fenceValue;
+    public void WaitForIdle() => WaitForFence(IncrementFence());
+    
+    public void StallForFence(CommandQueue other) {
+        pQueue.Wait(other.pFence, other.NextFenceValue - 1);
     }
 
     public ID3D12CommandAllocator* RequestAllocator() {
         return _allocatorPool.Request(pFence.GetCompletedValue());
     }
 
-    public void ReturnAllocator(ulong fenceValue, ID3D12CommandAllocator* allocator) {
-        _allocatorPool.Return(fenceValue, allocator);
+    public void ReturnAllocator(ulong fenceValue, ID3D12CommandAllocator* pAllocator) {
+        _allocatorPool.Return(pAllocator, fenceValue);
     }
 
     private void Dispose(bool disposing) {
         if (pQueue.Handle == null) return;
 
-        if (disposing) {
-            _allocatorPool.Dispose(); _allocatorPool = null!;
-        }
+        _allocatorPool.Dispose();
 
-        var _ = SilkMarshal.CloseWindowsHandle(hEvent); hEvent = nint.Zero;
-        pQueue.Dispose(); pQueue = default;
-        pFence.Dispose(); pFence = default;
-        _context = null!;
-    }
+        SilkMarshal.CloseWindowsHandle(_eventHandle);
+        _eventHandle = nint.Zero;
 
-    ~CommandQueue() {
-        Dispose(disposing: false);
+        pFence.Release();
+        
+        pQueue.Release();
+        pQueue = default;
     }
 
     public void Dispose() {
-        Dispose(disposing: true);
+        Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    ~CommandQueue() {
+        Dispose(false);
     }
 }

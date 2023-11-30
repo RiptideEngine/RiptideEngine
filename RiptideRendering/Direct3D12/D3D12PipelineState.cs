@@ -1,4 +1,7 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+using System.Buffers;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12PipelineState : PipelineState {
     private const string UnnamedPipelineState = $"<Unnamed {nameof(D3D12PipelineState)}>.pPipelineState";
@@ -13,7 +16,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
 
             if (pPipelineState.Handle != null) {
                 if (value == null) {
-                    D3D12Helper.SetName((ID3D12Object*)pPipelineState.Handle, UnnamedPipelineState);
+                    Helper.SetName((ID3D12Object*)pPipelineState.Handle, UnnamedPipelineState);
                 } else {
                     var reqLength = value.Length + 1 + nameof(pPipelineState).Length;
                     var charArray = ArrayPool<char>.Shared.Rent(reqLength);
@@ -22,7 +25,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                         charArray[value.Length] = '.';
                         nameof(pPipelineState).CopyTo(0, charArray, value.Length + 1, nameof(pPipelineState).Length);
 
-                        D3D12Helper.SetName((ID3D12Object*)pPipelineState.Handle, charArray.AsSpan(0, reqLength));
+                        Helper.SetName((ID3D12Object*)pPipelineState.Handle, charArray.AsSpan(0, reqLength));
                     }
                     ArrayPool<char>.Shared.Return(charArray);
                 }
@@ -31,10 +34,6 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
     }
 
     public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature pipelineResource, in PipelineStateDescription description) {
-        ShaderBytecode vs, ps, hs, ds;
-        RasterizerDesc rdesc;
-        DepthStencilDesc dsdesc;
-        BlendDesc bdesc;
         Unsafe.SkipInit(out GraphicsPipelineStateDesc.RTVFormatsBuffer rtFormats);
 
         fixed (byte* pVSBytecode = shader.VSBytecode) {
@@ -43,32 +42,32 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                     fixed (byte* pDSBytecode = shader.DSBytecode) {
                         ref readonly var rtConfig = ref description.RenderTargetFormats;
 
-                        bool convert = D3D12Convert.TryConvert(rtConfig.Formats[0], out rtFormats[0]);
+                        bool convert = Converting.TryConvert(rtConfig.Formats[0], out rtFormats[0]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 0.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[1], out rtFormats[1]);
+                        convert = Converting.TryConvert(rtConfig.Formats[1], out rtFormats[1]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 1.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[2], out rtFormats[2]);
+                        convert = Converting.TryConvert(rtConfig.Formats[2], out rtFormats[2]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 2.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[3], out rtFormats[3]);
+                        convert = Converting.TryConvert(rtConfig.Formats[3], out rtFormats[3]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 3.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[4], out rtFormats[4]);
+                        convert = Converting.TryConvert(rtConfig.Formats[4], out rtFormats[4]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 4.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[5], out rtFormats[5]);
+                        convert = Converting.TryConvert(rtConfig.Formats[5], out rtFormats[5]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 5.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[6], out rtFormats[6]);
+                        convert = Converting.TryConvert(rtConfig.Formats[6], out rtFormats[6]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 6.");
                         
-                        convert = D3D12Convert.TryConvert(rtConfig.Formats[7], out rtFormats[7]);
+                        convert = Converting.TryConvert(rtConfig.Formats[7], out rtFormats[7]);
                         if (!convert) throw new ArgumentException("Failed to convert RenderTargetFormats index 7.");
 
                         ref readonly var rasterConfig = ref description.Rasterization;
-                        rdesc = new() {
+                        RasterizerDesc rdesc = new() {
                             CullMode = rasterConfig.CullMode switch {
                                 CullingMode.None => CullMode.None,
                                 CullingMode.Front => CullMode.Front,
@@ -83,7 +82,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                         };
 
                         ref readonly var blendConfig = ref description.Blending;
-                        bdesc = new() {
+                        BlendDesc bdesc = new() {
                             AlphaToCoverageEnable = false,
                             IndependentBlendEnable = blendConfig.Independent,
                         };
@@ -98,13 +97,13 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                         bdesc.RenderTarget[7] = ConvertTargetBlend(description.Blending.Blends[7]);
 
                         ref readonly var dsconfig = ref description.DepthStencil;
-                        dsdesc = new() {
+                        DepthStencilDesc dsdesc = new() {
                             DepthEnable = dsconfig.EnableDepth,
                             StencilEnable = dsconfig.EnableStencil,
                             DepthWriteMask = dsconfig.DepthWrite ? DepthWriteMask.All : DepthWriteMask.Zero,
                             StencilReadMask = dsconfig.StencilReadMask,
                             StencilWriteMask = dsconfig.StencilWriteMask,
-                            DepthFunc = D3D12Convert.TryConvert(dsconfig.DepthComparison, out var depthFunc) ? depthFunc : ComparisonFunc.Never,
+                            DepthFunc = Converting.TryConvert(dsconfig.DepthComparison, out var depthFunc) ? depthFunc : ComparisonFunc.Never,
                             BackFace = new() {
                                 StencilDepthFailOp = (StencilOp)dsconfig.BackfaceOperation.DepthFailOp,
                                 StencilFailOp = (StencilOp)dsconfig.BackfaceOperation.FailOp,
@@ -119,25 +118,25 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                             },
                         };
 
-                        convert = D3D12Convert.TryConvert(description.DepthFormat, out var depthFormat);
+                        convert = Converting.TryConvert(description.DepthFormat, out var depthFormat);
                         if (!convert) throw new ArgumentException("Failed to convert depth format.");
 
                         GraphicsPipelineStateDesc desc = new() {
                             VS = new() {
                                 PShaderBytecode = pVSBytecode,
-                                BytecodeLength = (nuint)shader.VSBytecode.Length
+                                BytecodeLength = (nuint)shader.VSBytecode.Length,
                             },
                             HS = new() {
                                 PShaderBytecode = pHSBytecode,
-                                BytecodeLength = (nuint)shader.HSBytecode.Length
+                                BytecodeLength = (nuint)shader.HSBytecode.Length,
                             },
                             DS = new() {
                                 PShaderBytecode = pDSBytecode,
-                                BytecodeLength = (nuint)shader.DSBytecode.Length
+                                BytecodeLength = (nuint)shader.DSBytecode.Length,
                             },
                             PS = new() {
                                 PShaderBytecode = pPSBytecode,
-                                BytecodeLength = (nuint)shader.PSBytecode.Length
+                                BytecodeLength = (nuint)shader.PSBytecode.Length,
                             },
 
                             PRootSignature = pipelineResource.RootSignature,
@@ -160,7 +159,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                         int hr = context.Device->CreateGraphicsPipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pOutput.GetAddressOf());
                         Marshal.ThrowExceptionForHR(hr);
 
-                        D3D12Helper.SetName(pOutput.Handle, UnnamedPipelineState);
+                        Helper.SetName(pOutput.Handle, UnnamedPipelineState);
                         pPipelineState.Handle = pOutput.Detach();
 
                         Shader = shader;

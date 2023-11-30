@@ -80,7 +80,7 @@ public sealed class Mesh : RiptideRcObject {
                 ShaderResourceView? view = null;
 
                 try {
-                    resource = factory.CreateBuffer(new BufferDescription {
+                    resource = factory.CreateBuffer(new() {
                         Width = numVertices * descriptor.Stride,
                     });
                     resource.Name = $"{Name}.VertexBuffer[{descriptor.Channel}].Buffer";
@@ -98,8 +98,8 @@ public sealed class Mesh : RiptideRcObject {
             }
         } catch {
             foreach ((var buffer, var view) in outputs) {
-                buffer.DecrementReference();
-                view.DecrementReference();
+                buffer?.DecrementReference();
+                view?.DecrementReference();
             }
             
             throw;

@@ -1,60 +1,41 @@
-﻿using RiptideRendering.Direct3D12;
+﻿namespace RiptideRendering;
 
-namespace RiptideRendering;
-
-public struct ContextOptions(RenderingAPI api, IWindow outputWindow) {
-    public RenderingAPI Api = api;
-    public IWindow OutputWindow = outputWindow;
+public enum QueueType {
+    Graphics,
+    Compute,
+    Copy,
 }
 
-public static class RenderingContext {
-    private static BaseRenderingContext? _ctx;
+public abstract partial class RenderingContext : IDisposable {
+    protected bool disposed;
 
-    public static BaseRenderingContext? CreateContext(ContextOptions options) {
-        if (!Environment.Is64BitOperatingSystem) throw new PlatformNotSupportedException("Current process is not a 64-bit process.");
+    public abstract RenderingAPI RenderingAPI { get; }
+    public abstract Factory Factory { get; }
+    public abstract CapabilityChecker CapabilityChecker { get; }
 
-        if (options.Api == RenderingAPI.None) throw new ArgumentException("Cannot create rendering context with API value of 'None'.", nameof(options));
+    public abstract (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget { get; }
 
-        if (_ctx != null) throw new NotSupportedException("Creating multiple rendering context is not supported yet.");
+    public abstract ILoggingService? Logger { get; set; }
 
-        switch (options.Api) {
-            case RenderingAPI.Direct3D12: {
-                if (!ApiAvailability.IsDirect3D12Available()) throw new PlatformNotSupportedException("Direct3D12 API is not available.");
+    public void ResizeSwapchain(uint width, uint height) {
+        ArgumentOutOfRangeException.ThrowIfZero(width, nameof(width));
+        ArgumentOutOfRangeException.ThrowIfZero(height, nameof(height));
 
-                _ctx = new D3D12RenderingContext(options);
-                return _ctx;
+        ResizeSwapchainImpl(width, height);
+    }
+    protected abstract void ResizeSwapchainImpl(uint width, uint height);
 
-                //Console.WriteLine("Loading rendering plugin for Direct3D12...");
+    public abstract void Present();
 
-                //var sw = Stopwatch.StartNew();
-                //string pluginPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "RiptideRendering.Direct3D12.dll");
+    public abstract void WaitQueueIdle(QueueType type);
+    public abstract bool WaitFence(ulong fenceValue);
+    public abstract ulong ExecuteCommandList(CopyCommandList commandList);
+    public abstract ulong ExecuteCommandList(GraphicsCommandList commandList);
 
-                //using var stream = new FileStream(pluginPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                //var loadContext = new PluginLoadContext(pluginPath);
-                //var assembly = loadContext.LoadFromStream(stream);
+    protected abstract void Dispose(bool disposing);
 
-                //var attribute = assembly.GetCustomAttribute(typeof(ContextTypePointerAttribute<>)) ?? throw new Exception("Failed to load Direct3D12 rendering context because the assembly is missing ContextTypePointerAttribute<T> attribute.");
-
-                //var contextType = attribute.GetType().GetGenericArguments()[0];
-                //if (!contextType.IsSubclassOf(typeof(BaseRenderingContext))) throw new Exception($"Failed to load Direct3D12 context because the context type '{contextType.FullName}' is not derived from {nameof(BaseRenderingContext)}.");
-
-                //Console.WriteLine(string.Join('\n', loadContext.Assemblies.Select(x => x.FullName)));
-
-                //var constructors = contextType.GetConstructors();
-
-                //var ctx = (BaseRenderingContext)contextType.GetConstructors()[0].Invoke([options]);
-
-                //sw.Stop();
-                //Console.WriteLine($"Context created in {sw.Elapsed.TotalSeconds}sec.");
-
-                //_ctx = ctx;
-                //return ctx;
-            }
-
-            default:
-                if (options.Api.IsDefined()) throw new NotImplementedException($"Context creation for rendering API '{options}' is not implemented yet.");
-
-                throw new ArgumentException("Undefined rendering API.");
-        }
+    public void Dispose() {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 }

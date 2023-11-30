@@ -1,6 +1,9 @@
-﻿namespace RiptideRendering.Direct3D12; 
+﻿using Silk.NET.Direct3D12;
+using Silk.NET.DXGI;
 
-internal sealed unsafe class D3D12GpuTexture : GpuTexture {
+namespace RiptideRendering.Direct3D12;
+
+internal sealed unsafe class D3D12GpuTexture : GpuTexture, IResourceStateTracking {
     public const string UnnamedResource = $"<Unnamed {nameof(D3D12GpuTexture)}>.{nameof(NativeResourceHandle)}";
 
     private D3D12RenderingContext _context;
@@ -11,7 +14,7 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture {
 
             ResourceDesc rdesc = ((ID3D12Resource*)NativeResourceHandle)->GetDesc();
 
-            bool convert = D3D12Convert.TryConvert(rdesc.Format, out var format);
+            bool convert = Converting.TryConvert(rdesc.Format, out var format);
             Debug.Assert(convert);
             
             return new() {
@@ -31,15 +34,16 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture {
             if (Interlocked.Read(ref _refcount) == 0) return;
             
             base.Name = value;
-            D3D12Helper.SetName((ID3D12Resource*)NativeResourceHandle, value == null ? UnnamedResource : $"{value}.{nameof(NativeResourceHandle)}");
+            Helper.SetName((ID3D12Resource*)NativeResourceHandle, value == null ? UnnamedResource : $"{value}.{nameof(NativeResourceHandle)}");
         }
     }
-    
-    internal ResourceStates UsageState { get; set; }
-    internal ResourceStates TransitioningState { get; set; }
+
+    public ID3D12Resource* TransitionResource => (ID3D12Resource*)NativeResourceHandle;
+    public ResourceStates UsageState { get; set; }
+    public ResourceStates TransitioningState { get; set; }
 
     public D3D12GpuTexture(D3D12RenderingContext context, in TextureDescription desc) {
-        bool convert = D3D12Convert.TryConvert(desc.Format, out var dxgiFormat);
+        bool convert = Converting.TryConvert(desc.Format, out var dxgiFormat);
         Debug.Assert(convert);
 
         HeapProperties hprops = new() {
@@ -86,20 +90,21 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture {
 
         using ComPtr<ID3D12Resource> pOutput = default;
         fixed (ClearValue* pClear = clear) {
-            int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, D3D12ResourceStates.Common, pClear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
+            int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, pClear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
             Marshal.ThrowExceptionForHR(hr);
         }
         
-        D3D12Helper.SetName(pOutput.Handle, UnnamedResource);
+        Helper.SetName(pOutput.Handle, UnnamedResource);
 
         NativeResourceHandle = (nint)pOutput.Detach();
-        _context = context;
 
         UsageState = ResourceStates.Common;
         TransitioningState = (ResourceStates)(-1);
 
+        _context = context;
         _refcount = 1;
     }
+    
     public D3D12GpuTexture(D3D12RenderingContext context, IDXGISwapChain* pSwapchain, uint bufferIndex) {
         ID3D12Resource* output;
         int hr = pSwapchain->GetBuffer(bufferIndex, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)&output);
@@ -113,9 +118,9 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture {
 
         _refcount = 1;
     }
-    
+
     protected override void Dispose() {
-        _context.AddToDeferredDestruction((ID3D12Resource*)NativeResourceHandle);
+        _context.DestroyDeferred((ID3D12Resource*)NativeResourceHandle);
         NativeResourceHandle = nint.Zero;
         _context = null!;
     }

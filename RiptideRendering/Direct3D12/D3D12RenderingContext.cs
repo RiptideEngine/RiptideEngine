@@ -1,165 +1,159 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+using Silk.NET.DXGI;
+using System.Collections.Concurrent;
 
-internal sealed unsafe partial class D3D12RenderingContext : BaseRenderingContext {
-    private D3D12Factory _factory;
-    private D3D12CapabilityChecker _capCheck;
+namespace RiptideRendering.Direct3D12;
 
-    public D3D12 D3D12 { get; private set; }
-    public DXGI DXGI { get; private set; }
+internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
+    public override RenderingAPI RenderingAPI => RenderingAPI.Direct3D12;
+
+    private readonly D3D12Factory _factory;
+    private readonly D3D12CapabilityChecker _capChecker;
+    private DXGI _dxgi;
 
     private ComPtr<ID3D12Device4> pDevice;
-    private ComPtr<IDXGIFactory2> pFactory;
+    private ComPtr<IDXGIFactory6> pDxgiFactory;
 
-    internal Display Display { get; private set; }
+    private readonly ConcurrentQueue<nint> _deferredDestroyResource = [];
 
-    private DeviceDependentConstants _devdepConsts;
-    internal ref readonly DeviceDependentConstants Constants => ref _devdepConsts;
-    internal Debugger? Debugger { get; private set; }
-    public ID3D12Device4* Device => pDevice;
-    public IDXGIFactory2* DxgiFactory => pFactory;
-    internal CommandQueue RenderingQueue { get; private set; }
-
-    private readonly DeferredDestructor _deferredDestructor;
-
-    public override RenderingAPI RenderingAPI => RenderingAPI.Direct3D12;
-    public override BaseFactory Factory => _factory;
-    public override BaseCapabilityChecker CapabilityChecker => _capCheck;
-
-    public override (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget => Display.CurrentSwapchainRenderTarget;
-
+    public override Factory Factory => _factory;
+    public override CapabilityChecker CapabilityChecker => _capChecker;
+    
     public override ILoggingService? Logger { get; set; }
+    
+    public D3DFeatureLevel FeatureLevel { get; private set; }
+
+    public CommandQueues Queues { get; }
+
+    public ID3D12Device4* Device => pDevice.Handle;
+
+    public D3D12 D3D12 { get; }
 
     public D3D12RenderingContext(ContextOptions options) {
-        int hr;
+        D3D12 = D3D12.GetApi();
+        _dxgi = DXGI.GetApi(options.OutputWindow);
 
+        HResult hr;
+        
         try {
-            D3D12 = D3D12.GetApi();
-            DXGI = DXGI.GetApi(options.OutputWindow, false);
+            pDxgiFactory = _dxgi.CreateDXGIFactory2<IDXGIFactory6>(0x01);
+            
+            InitializeDebugLayer();
+            
+            // Device creation
+            {
+                Span<D3DFeatureLevel> featureLevels = [
+                    D3DFeatureLevel.Level122,
+                    D3DFeatureLevel.Level121,
+                    D3DFeatureLevel.Level120,
+                    D3DFeatureLevel.Level111,
+                    D3DFeatureLevel.Level110,
+                ];
 
-            bool debug = options.OutputWindow.API.Flags.HasFlag(ContextFlags.Debug);
+                D3DFeatureLevel level = default;
 
-            using ComPtr<IDXGIFactory2> pOutputFactory = default;
-            hr = DXGI.CreateDXGIFactory2(debug ? 0x01U : 0x00, SilkMarshal.GuidPtrOf<IDXGIFactory2>(), (void**)&pOutputFactory);
-            Marshal.ThrowExceptionForHR(hr);
-
-            if (debug) {
-                using ComPtr<ID3D12Debug> pDebug = default;
-                if (D3D12.GetDebugInterface(SilkMarshal.GuidPtrOf<ID3D12Debug>(), (void**)&pDebug) >= 0) {
-                    pDebug.EnableDebugLayer();
-
-                    using ComPtr<ID3D12Debug1> pDebug1 = default;
-                    if (pDebug.QueryInterface(SilkMarshal.GuidPtrOf<ID3D12Debug1>(), (void**)&pDebug1) >= 0) {
-                        pDebug1.SetEnableGPUBasedValidation(true);
+                IDXGIAdapter1* pAdapter;
+                for (uint i = 0; pDxgiFactory.EnumAdapterByGpuPreference(i, GpuPreference.HighPerformance, SilkMarshal.GuidPtrOf<IDXGIAdapter1>(), (void**)&pAdapter) >= 0; i++) {
+                    AdapterDesc1 desc;
+                    if (pAdapter->GetDesc1(&desc) < 0 || desc.Flags == 2) {
+                        pAdapter->Release();
+                        pAdapter = null;
+                        continue;
                     }
+
+                    foreach (var createLevel in featureLevels) {
+                        hr = D3D12.CreateDevice((IUnknown*)pAdapter, createLevel, SilkMarshal.GuidPtrOf<ID3D12Device>(), null);
+
+                        if (hr.IsSuccess) {
+                            level = createLevel;
+                            goto foundAdapter;
+                        }
+                    }
+
+                    pAdapter->Release();
+                    pAdapter = null;
                 }
+
+                foundAdapter:
+                if (pAdapter == null) throw new PlatformNotSupportedException("Cannot find an adapter suitable to create ID3D12Device.");
+
+                using ComPtr<ID3D12Device> outputDevice = default;
+
+                hr = D3D12.CreateDevice((IUnknown*)pAdapter, level, SilkMarshal.GuidPtrOf<ID3D12Device>(), (void**)outputDevice.GetAddressOf());
+                pAdapter->Release();
+                Marshal.ThrowExceptionForHR(hr);
+
+                hr = outputDevice.QueryInterface(SilkMarshal.GuidPtrOf<ID3D12Device4>(), (void**)pDevice.GetAddressOf());
+                if (hr.IsError) throw new PlatformNotSupportedException("Failed to QueryInterface ID3D12Device into ID3D12Device4.");
+
+                FeatureLevel = level;
             }
+            
+            InitializeDebugMessageCallback();
 
-            using ComPtr<IDXGIAdapter1> pAdapter = default;
-            DxgiHelper.GetHardwareAdapter(D3D12, (IDXGIFactory1*)pOutputFactory.Handle, true, pAdapter.GetAddressOf());
-
-            using ComPtr<ID3D12Device> pOutputDevice = default;
-            hr = D3D12.CreateDevice((IUnknown*)pAdapter.Handle, D3DFeatureLevel.Level121, SilkMarshal.GuidPtrOf<ID3D12Device>(), (void**)&pOutputDevice);
-            Marshal.ThrowExceptionForHR(hr);
-
-            hr = pOutputDevice.QueryInterface(SilkMarshal.GuidPtrOf<ID3D12Device4>(), (void**)pDevice.GetAddressOf());
-            Marshal.ThrowExceptionForHR(hr);
-
-            _devdepConsts = new((ID3D12Device*)pDevice.Handle);
-            _capCheck = new(this);
-
-            pFactory.Handle = pOutputFactory.Detach();
-
-            if (debug) {
-                Debugger = new(this);
-            }
-
-            RenderingQueue = new(this, CommandListType.Direct);
-            _factory = new(this);
-
-            RootSigStorage = new(this);
-            UploadBufferPool = new(this);
-
-            StagingResourceHeapPool = new(this, DescriptorHeapType.CbvSrvUav);
-            StagingSamplerHeapPool = new(this, DescriptorHeapType.Sampler);
-
-            GpuResourceDescHeapPool = new(this, DescriptorHeapType.CbvSrvUav, 8192);
-            CurrentResourceGpuDescHeap = new(GpuResourceDescHeapPool, _devdepConsts.ResourceViewDescIncrementSize);
-
-            GpuSamplerDescHeapPool = new(this, DescriptorHeapType.Sampler, 1024);
-            CurrentSamplerGpuDescHeap = new(GpuSamplerDescHeapPool, _devdepConsts.SamplerDescIncrementSize);
-
-            CommandListPool = new(this);
-
-            _resourceDescAlloc = [
-                new(this, DescriptorHeapType.CbvSrvUav),
-                new(this, DescriptorHeapType.Sampler),
-                new(this, DescriptorHeapType.Rtv),
-                new(this, DescriptorHeapType.Dsv),
-            ];
-
-            Display = new(this, options.OutputWindow);
-
-            _deferredDestructor = new();
+            Queues = new(this);
+            
+            InitializeResources();
+            InitializeDisplay(options.OutputWindow);
         } catch {
             Dispose();
             throw;
         }
+
+        _factory = new(this);
+        _capChecker = new(this);
     }
 
-    public void AddToDeferredDestruction(ID3D12Resource* pResource) {
-        _deferredDestructor.QueueResource(RenderingQueue.NextFenceValue - 1, pResource);
+    public override void WaitQueueIdle(QueueType type) {
+        switch (type) {
+            case QueueType.Graphics: Queues.GraphicQueue.WaitForIdle(); break;
+            case QueueType.Compute: Queues.ComputeQueue.WaitForIdle(); break;
+            case QueueType.Copy: Queues.CopyQueue.WaitForIdle(); break;
+        }
     }
 
-    public void DestroyDeferredResources() {
-        _deferredDestructor.ReleaseResources(RenderingQueue.CompletedValue);
+    public override bool WaitFence(ulong fenceValue) {
+        var queue = Queues.GetQueue(fenceValue);
+        return queue.WaitForFence(fenceValue);
+    }
+
+    public override ulong ExecuteCommandList(GraphicsCommandList commandList) {
+        if (!commandList.IsClosed) throw new InvalidOperationException("Command List must be closed before executing.");
+        
+        Debug.Assert(commandList is D3D12GraphicsCommandList, "commandList is D3D12GraphicsCommandList");
+        
+        return Queues.GraphicQueue.ExecuteCommandList((ID3D12CommandList*)Unsafe.As<D3D12GraphicsCommandList>(commandList).CommandList);
+    }
+
+    public override ulong ExecuteCommandList(CopyCommandList commandList) {
+        if (!commandList.IsClosed) throw new InvalidOperationException("Command List must be closed before executing.");
+
+        Debug.Assert(commandList is D3D12CopyCommandList, "commandList is D3D12CopyCommandList");
+
+        ulong fence = Queues.CopyQueue.ExecuteCommandList((ID3D12CommandList*)Unsafe.As<D3D12CopyCommandList>(commandList).CommandList);
+        return fence;
+    }
+
+    public void DestroyDeferred(ID3D12Resource* resource) {
+        _deferredDestroyResource.Enqueue((nint)resource);
     }
 
     protected override void Dispose(bool disposing) {
-        if (D3D12 == null) return;
-        RenderingQueue.WaitForIdle();
+        Queues?.Dispose();
 
-        if (disposing) {
-            CommandListPool?.Dispose(); CommandListPool = null!;
-            RootSigStorage?.Dispose(); RootSigStorage = null!;
-            Display?.Dispose(); Display = null!;
-            UploadBufferPool?.Dispose(); UploadBufferPool = null!;
-            RenderingQueue?.Dispose(); RenderingQueue = null!;
-
-            GpuResourceDescHeapPool?.Dispose(); GpuResourceDescHeapPool = null!;
-            CurrentResourceGpuDescHeap = null!;
-
-            GpuSamplerDescHeapPool?.Dispose(); GpuSamplerDescHeapPool = null!;
-            CurrentSamplerGpuDescHeap = null!;
-
-            StagingResourceHeapPool?.Dispose(); StagingResourceHeapPool = null!;
-            StagingSamplerHeapPool?.Dispose(); StagingSamplerHeapPool = null!;
-
-            _deferredDestructor?.Dispose();
-
-            foreach (var allocator in _resourceDescAlloc) allocator.Dispose();
-            _resourceDescAlloc = [];
-
-            if (Debugger != null) {
-                Debugger.ReportLiveD3D12Objects();
-                Debugger.Dispose();
-            }
-            Debugger = null!;
+        foreach (var resource in _deferredDestroyResource) {
+            ((ID3D12Resource*)resource)->Release();
         }
 
-        pDevice.Dispose(); pDevice = default;
-        pFactory.Dispose(); pFactory = default;
+        DisposeDisplay();
+        DisposeResources();
+        
+        ShutdownDebugLayer();
+        
+        pDxgiFactory.Release(); pDxgiFactory = null!;
+        pDevice.Release(); pDevice = null!;
 
-        D3D12?.Dispose(); D3D12 = null!;
-        DXGI?.Dispose(); DXGI = null!;
-        _factory = null!; _capCheck = null!;
-
-        _devdepConsts = default;
+        D3D12.Dispose();
+        _dxgi.Dispose();
     }
-
-    ~D3D12RenderingContext() {
-        Dispose(disposing: false);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal CpuDescriptorAllocator GetResourceDescriptorAllocator(DescriptorHeapType type) => _resourceDescAlloc[(int)type];
 }

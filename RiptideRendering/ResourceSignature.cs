@@ -41,7 +41,7 @@ public struct ResourceParameter {
     }
 }
 
-public struct ImmutableSamplerDescriptor {
+public struct ImmutableSamplerDescription {
     public uint Register, Space;
 
     public SamplerFilter Filter;
@@ -52,11 +52,11 @@ public struct ImmutableSamplerDescriptor {
     public float MinLod, MaxLod;
 }
 
-public struct ResourceSignatureDescriptor {
+public struct ResourceSignatureDescription {
     public SignatureFlags Flags;
 
     public ResourceParameter[] Parameters;
-    public ImmutableSamplerDescriptor[] ImmutableSamplers;
+    public ImmutableSamplerDescription[] ImmutableSamplers;
 }
 
 public abstract class ResourceSignature : RenderingObject { }

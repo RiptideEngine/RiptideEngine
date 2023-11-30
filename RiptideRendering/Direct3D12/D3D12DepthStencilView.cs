@@ -1,4 +1,6 @@
-﻿namespace RiptideRendering.Direct3D12;
+﻿using Silk.NET.Direct3D12;
+
+namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
     public CpuDescriptorHandle Handle { get; private set; }
@@ -7,7 +9,7 @@ internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
     public D3D12DepthStencilView(D3D12RenderingContext context, D3D12GpuTexture texture, DepthStencilViewDescription desc) {
         Unsafe.SkipInit(out DepthStencilViewDesc dsvdesc);
         
-        bool convert = D3D12Convert.TryConvert(desc.Format, out dsvdesc.Format);
+        bool convert = Converting.TryConvert(desc.Format, out dsvdesc.Format);
         Debug.Assert(convert);
 
         dsvdesc.Flags = DsvFlags.None;
@@ -67,7 +69,7 @@ internal sealed unsafe class D3D12DepthStencilView : DepthStencilView {
             default: throw new UnreachableException();
         }
         
-        Handle = context.GetResourceDescriptorAllocator(DescriptorHeapType.Dsv).Allocate();
+        Handle = context.AllocateCpuDescriptor(DescriptorHeapType.Dsv);
         context.Device->CreateDepthStencilView((ID3D12Resource*)texture.NativeResourceHandle, &dsvdesc, Handle);
         
         _refcount = 1;

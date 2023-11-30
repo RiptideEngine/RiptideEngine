@@ -2,4 +2,5 @@
 [assembly: InternalsVisibleTo("RiptidePlayer")]
 [assembly: InternalsVisibleTo("RiptideEditor")]
 [assembly: InternalsVisibleTo("RiptideEditorV2")]
-[assembly: InternalsVisibleTo("RenderingExperiment")]
+[assembly: InternalsVisibleTo("FontRenderingExperiment")]
+[assembly: InternalsVisibleTo("RenderingApiExperiment")]

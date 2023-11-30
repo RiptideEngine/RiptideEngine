@@ -7,7 +7,7 @@ public static class ShaderCompilationPipeline {
     
     public static RenderingAPI TargetApi { get; private set; }
     
-    internal static void Initialize(BaseRenderingContext context) {
+    internal static void Initialize(RenderingContext context) {
         if (Pipeline != null) throw new InvalidOperationException("Shader compilation pipeline has already initialized.");
 
         switch (context.RenderingAPI) {

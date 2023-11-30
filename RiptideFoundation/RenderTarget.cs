@@ -66,7 +66,7 @@ public sealed class RenderTarget : RiptideRcObject {
             });
 
             if (depthFormat != GraphicsFormat.Unknown) {
-                if (!depthFormat.IsDepthFormat()) throw new ArgumentException($"Depth format must be {nameof(GraphicsFormat.D16UNorm)}, {nameof(GraphicsFormat.D24UNormS8UInt)}, {nameof(GraphicsFormat.D32Float)}, {nameof(GraphicsFormat.D32FloatS8UInt)}.");
+                if (!depthFormat.IsDepthFormat()) throw new ArgumentException($"Depth format must be {nameof(GraphicsFormat.D16UNorm)}, {nameof(GraphicsFormat.D24UNormS8UInt)}, {nameof(GraphicsFormat.D32Float)}, {nameof(GraphicsFormat.D32FloatS8X24UInt)}.");
 
                 _depthTexture = factory.CreateTexture(new() {
                     Dimension = dimension,

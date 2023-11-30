@@ -14,7 +14,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Riptide.UserInterface\Riptide.UserInterface.csproj" />
       <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
       <ProjectReference Include="..\RiptideFoundation\RiptideFoundation.csproj" />
       <ProjectReference Include="..\RiptideMathematics\RiptideMathematics.csproj" />

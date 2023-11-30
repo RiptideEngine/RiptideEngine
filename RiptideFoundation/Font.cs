@@ -136,19 +136,19 @@ public sealed unsafe class Font : RiptideRcObject {
                 }
 
                 {
-                    var context = Graphics.RenderingContext;
-                    var cmdList = context.Factory.CreateCommandList();
-                    
-                    cmdList.TranslateState(bitmap.UnderlyingTexture, ResourceTranslateStates.CopyDestination);
-
-                    cmdList.UpdateResource(bitmap.UnderlyingTexture, pixels);
-                    
-                    cmdList.TranslateState(bitmap.UnderlyingTexture, ResourceTranslateStates.ShaderResource);
-                    
-                    cmdList.Close();
-                    context.ExecuteCommandList(cmdList);
-                    context.WaitForGpuIdle();
-                    cmdList.DecrementReference();
+                    // var context = Graphics.RenderingContext;
+                    // var cmdList = context.Factory.CreateCommandList();
+                    //
+                    // cmdList.TranslateState(bitmap.UnderlyingTexture, ResourceTranslateStates.CopyDestination);
+                    //
+                    // cmdList.UpdateResource(bitmap.UnderlyingTexture, pixels);
+                    //
+                    // cmdList.TranslateState(bitmap.UnderlyingTexture, ResourceTranslateStates.ShaderResource);
+                    //
+                    // cmdList.Close();
+                    // context.ExecuteCommandList(cmdList);
+                    // context.WaitForGpuIdle();
+                    // cmdList.DecrementReference();
                 }
             } catch {
                 bitmap.DecrementReference();
