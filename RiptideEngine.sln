@@ -39,7 +39,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParticleSystem", "Laborator
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FontRenderingExperiment", "Laboratory\FontRenderingExperiment\FontRenderingExperiment.csproj", "{D25C25C2-D6D2-42BC-B40A-3D6555226355}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Riptide.SourceGeneration", "Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj", "{B6953568-DE23-4505-B7C4-206148B9D417}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Riptide.SourceGeneration", "Riptide.SourceGeneration\Riptide.SourceGeneration.csproj", "{CA117DE7-BE36-4E39-8AAC-03BF842CF2B4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -111,10 +111,10 @@ Global
 		{D25C25C2-D6D2-42BC-B40A-3D6555226355}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D25C25C2-D6D2-42BC-B40A-3D6555226355}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D25C25C2-D6D2-42BC-B40A-3D6555226355}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B6953568-DE23-4505-B7C4-206148B9D417}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B6953568-DE23-4505-B7C4-206148B9D417}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B6953568-DE23-4505-B7C4-206148B9D417}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B6953568-DE23-4505-B7C4-206148B9D417}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA117DE7-BE36-4E39-8AAC-03BF842CF2B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA117DE7-BE36-4E39-8AAC-03BF842CF2B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA117DE7-BE36-4E39-8AAC-03BF842CF2B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA117DE7-BE36-4E39-8AAC-03BF842CF2B4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

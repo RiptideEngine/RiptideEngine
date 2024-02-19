@@ -23,7 +23,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	  <ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	  <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
 	</ItemGroup>
 
