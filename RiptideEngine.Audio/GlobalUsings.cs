@@ -5,6 +5,3 @@ global using System.Diagnostics.CodeAnalysis;
 global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
 global using RiptideEngine.Core;
-global using RPCSToolkit.Attributes;
-global using RPCSToolkit.Utilities;
-global using RPCSToolkit;

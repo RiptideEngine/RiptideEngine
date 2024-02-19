@@ -1,5 +1,5 @@
 ﻿namespace RiptideRendering;
 
-public abstract class GpuResource : RiptideRcObject {
+public abstract unsafe class GpuResource : RenderingObject {
     public nint NativeResourceHandle { get; protected set; }
 }

@@ -7,28 +7,39 @@ public enum SignatureFlags {
 
 public enum ResourceParameterType {
     Constants = 0,
-    Table = 1,
+    Descriptors = 1,
 }
 
 [EnumExtension]
-public enum ResourceRangeType {
-    ConstantBuffer = 0,
-    ShaderResourceView = 1,
-    UnorderedAccess = 2,
-    Sampler = 3,
-}
-
-public struct ResourceRange {
-    public ResourceRangeType Type;
-    public uint BaseRegister;
-    public uint Space;
-    public uint NumResources;
+public enum DescriptorTableType {
+    ConstantBuffer,
+    ShaderResourceView,
+    UnorderedAccessView,
+    Sampler,
 }
 
 public struct ResourceParameter {
     public ResourceParameterType Type;
     public ConstantParameter Constants;
-    public TableParameter Table;
+    public DescriptorParameter Descriptors;
+
+    public static ResourceParameter CreateConstants(uint numConstants, uint register, uint space) => new() {
+        Type = ResourceParameterType.Constants,
+        Constants = new() {
+            NumConstants = numConstants,
+            Register = register,
+            Space = space,
+        },
+    };
+    public static ResourceParameter CreateDescriptors(DescriptorTableType type, uint numDescriptors, uint baseRegister, uint space) => new() {
+        Type = ResourceParameterType.Descriptors,
+        Descriptors = new() {
+            Type = type,
+            NumDescriptors = numDescriptors,
+            BaseRegister = baseRegister,
+            Space = space,
+        },
+    };
 
     public struct ConstantParameter {
         public uint Register;
@@ -36,8 +47,11 @@ public struct ResourceParameter {
         public uint NumConstants;
     }
 
-    public struct TableParameter {
-        public ResourceRange[] Ranges;
+    public struct DescriptorParameter {
+        public DescriptorTableType Type;
+        public uint BaseRegister;
+        public uint Space;
+        public uint NumDescriptors;
     }
 }
 
@@ -54,9 +68,11 @@ public struct ImmutableSamplerDescription {
 
 public struct ResourceSignatureDescription {
     public SignatureFlags Flags;
-
+    
     public ResourceParameter[] Parameters;
     public ImmutableSamplerDescription[] ImmutableSamplers;
 }
 
-public abstract class ResourceSignature : RenderingObject { }
+public abstract class ResourceSignature : RenderingObject {
+    public abstract ReadOnlySpan<ResourceParameter> Parameters { get; }
+}

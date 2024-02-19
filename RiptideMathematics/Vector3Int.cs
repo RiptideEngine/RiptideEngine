@@ -1,11 +1,29 @@
 ﻿namespace RiptideMathematics;
 
-public partial struct Vector3Int(int x, int y, int z) : IEquatable<Vector3Int>, IFormattable {
+public partial struct Vector3Int(int x, int y, int z) : IEquatable<Vector3Int>, 
+                                                        IFormattable,
+                                                        IAdditionOperators<Vector3Int, Vector3Int, Vector3Int>, 
+                                                        ISubtractionOperators<Vector3Int, Vector3Int, Vector3Int>,
+                                                        IUnaryNegationOperators<Vector3Int, Vector3Int>,
+                                                        IMultiplyOperators<Vector3Int, Vector3Int, Vector3Int>, 
+                                                        IMultiplyOperators<Vector3Int, int, Vector3Int>, 
+                                                        IMultiplyOperators<Vector3Int, float, Vector3>, 
+                                                        IDivisionOperators<Vector3Int, Vector3Int, Vector3Int>, 
+                                                        IDivisionOperators<Vector3Int, int, Vector3Int>, 
+                                                        IDivisionOperators<Vector3Int, float, Vector3>, 
+                                                        IBitwiseOperators<Vector3Int, Vector3Int, Vector3Int>,
+                                                        IEqualityOperators<Vector3Int, Vector3Int, bool>,
+                                                        IAdditiveIdentity<Vector3Int, Vector3Int>,
+                                                        IMultiplicativeIdentity<Vector3Int, Vector3Int>
+{
     public static Vector3Int Zero => default;
     public static Vector3Int UnitX => new(1, 0, 0);
     public static Vector3Int UnitY => new(0, 1, 0);
     public static Vector3Int UnitZ => new(0, 0, 1);
     public static Vector3Int One => new(1, 1, 1);
+
+    public static Vector3Int AdditiveIdentity => Zero;
+    public static Vector3Int MultiplicativeIdentity => One;
 
     public int X = x, Y = y, Z = z;
 
@@ -41,6 +59,10 @@ public partial struct Vector3Int(int x, int y, int z) : IEquatable<Vector3Int>, 
     public static Vector3Int operator *(Vector3Int left, Vector3Int right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector3Int operator *(Vector3Int left, int right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3 operator *(Vector3Int left, float right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3 operator *(float left, Vector3Int right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector3Int operator *(int left, Vector3Int right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

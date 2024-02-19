@@ -16,7 +16,7 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer, IResourceStateTracking 
 
             return new() {
                 Width = rdesc.Width,
-                Flags = BufferFlags.None,
+                Flags = rdesc.Flags.HasFlag(ResourceFlags.AllowUnorderedAccess) ? BufferFlags.UnorderedAccess : 0,
             };
         }
     }
@@ -37,7 +37,11 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer, IResourceStateTracking 
     
     public D3D12GpuBuffer(D3D12RenderingContext context, BufferDescription desc) {
         HeapProperties hprops = new() {
-            Type = HeapType.Default,
+            Type = desc.Type switch {
+                BufferType.Default => HeapType.Default,
+                BufferType.Dynamic => HeapType.Upload,
+                _ => throw new NotImplementedException($"Unimplemented buffer type '{desc.Type}'"),
+            },
             CreationNodeMask = 1,
             VisibleNodeMask = 1,
         };
@@ -54,11 +58,13 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer, IResourceStateTracking 
                 Quality = 0,
             },
             Layout = TextureLayout.LayoutRowMajor,
-            Flags = ResourceFlags.None,
+            Flags = desc.Flags.HasFlag(BufferFlags.UnorderedAccess) ? ResourceFlags.AllowUnorderedAccess : 0,
         };
+
+        UsageState = desc.Type == BufferType.Dynamic ? ResourceStates.GenericRead : ResourceStates.Common;
         
         using ComPtr<ID3D12Resource> pOutput = default;
-        int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
+        int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, UsageState, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
         Marshal.ThrowExceptionForHR(hr);
         
         Helper.SetName(pOutput.Handle, UnnamedResource);
@@ -66,7 +72,6 @@ internal sealed unsafe class D3D12GpuBuffer : GpuBuffer, IResourceStateTracking 
         NativeResourceHandle = (nint)pOutput.Detach();
         _context = context;
 
-        UsageState = ResourceStates.Common;
         TransitioningState = (ResourceStates)(-1);
         
         _refcount = 1;

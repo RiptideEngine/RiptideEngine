@@ -1,4 +1,6 @@
-﻿namespace RiptideFoundation;
+﻿using RiptideFoundation.Rendering;
+
+namespace RiptideFoundation;
 
 public enum RendererFlags {
     None = 0,

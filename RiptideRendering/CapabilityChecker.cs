@@ -13,7 +13,7 @@ public enum TextureSupportFlags {
 }
 
 /// <summary>
-/// Base class for rendering context's device capacity/feature checking.
+/// Base class of rendering context's device capacity/feature checking.
 /// </summary>
 public abstract class CapabilityChecker {
     /// <summary>
@@ -21,6 +21,12 @@ public abstract class CapabilityChecker {
     /// </summary>
     public abstract bool SupportShaderSpecifiedStencilRef { get; }
     
+    /// <summary>
+    /// Determine whether the rendering API supports mesh shader.
+    /// </summary>
+    public abstract bool SupportMeshShader { get; }
+    
     public abstract TextureSupportFlags CheckTextureFormatSupport(GraphicsFormat format);
     public abstract (uint Dimension, uint Array) GetMaximumTextureSize(TextureDimension dimension);
+    public abstract bool CheckTextureMipmapSupport(GraphicsFormat format);
 }

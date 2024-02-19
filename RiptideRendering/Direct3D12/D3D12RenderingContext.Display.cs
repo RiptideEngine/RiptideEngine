@@ -1,5 +1,6 @@
 ﻿using Silk.NET.Direct3D12;
 using Silk.NET.DXGI;
+using Feature = Silk.NET.Direct3D12.Feature;
 
 namespace RiptideRendering.Direct3D12;
 
@@ -14,14 +15,30 @@ unsafe partial class D3D12RenderingContext {
 
     public override (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget => (_perFrameDatas[_swapchainBackBufferIndex].BackBuffer, _perFrameDatas[_swapchainBackBufferIndex].View);
 
-    private void InitializeDisplay(IWindow outputWindow) {
+    private void InitializeDisplay(IWindow outputWindow, GraphicsFormat format) {
+        HResult hr;
+        
+        if (!Converting.TryConvert(format, out var dxgiFormat)) {
+            dxgiFormat = Format.FormatR8G8B8A8Unorm;
+        } else {
+            FeatureDataFormatSupport info = new() {
+                Format = dxgiFormat,
+            };
+            hr = Device->CheckFeatureSupport(Feature.FormatSupport, &info, (uint)sizeof(FeatureDataFormatSupport));
+            Debug.Assert(hr.IsSuccess, "hr.IsSuccess");
+
+            if ((info.Support1 & FormatSupport1.Display) != FormatSupport1.Display) {
+                dxgiFormat = Format.FormatR8G8B8A8Unorm;
+            }
+        }
+        
         SwapChainDesc1 scdesc = new() {
             Width = (uint)outputWindow.Size.X,
             Height = (uint)outputWindow.Size.Y,
             AlphaMode = AlphaMode.Unspecified,
             BufferCount = BufferCount,
             BufferUsage = 1 << 5,
-            Format = Format.FormatR8G8B8A8Unorm,
+            Format = dxgiFormat,
             SwapEffect = SwapEffect.FlipDiscard,
             SampleDesc = new() {
                 Count = 1,
@@ -35,7 +52,7 @@ unsafe partial class D3D12RenderingContext {
 
         try {
             using ComPtr<IDXGISwapChain1> outputSwapchain = default;
-            HResult hr = outputWindow.CreateDxgiSwapchain((IDXGIFactory2*)pDxgiFactory.Handle, (IUnknown*)Queues.GraphicQueue.Queue, &scdesc, &scfdesc, null, outputSwapchain.GetAddressOf());
+            hr = outputWindow.CreateDxgiSwapchain((IDXGIFactory2*)pDxgiFactory.Handle, (IUnknown*)Queues.GraphicsQueue.Queue, &scdesc, &scfdesc, null, outputSwapchain.GetAddressOf());
             Marshal.ThrowExceptionForHR(hr);
 
             pSwapchain = outputSwapchain.QueryInterface<IDXGISwapChain3>();
@@ -74,7 +91,7 @@ unsafe partial class D3D12RenderingContext {
     }
     
     public override void Present() {
-        var queue = Queues.GraphicQueue;
+        var queue = Queues.GraphicsQueue;
         uint swapchainBufferIndex = _swapchainBackBufferIndex;
         
         int hr = pSwapchain.Present(1, 0);
@@ -83,9 +100,10 @@ unsafe partial class D3D12RenderingContext {
         _swapchainBackBufferIndex = pSwapchain.GetCurrentBackBufferIndex();
 
         ref var data = ref _perFrameDatas[swapchainBufferIndex];
-        
         queue.WaitForFence(data.PresentFenceValue);
         data.PresentFenceValue = queue.NextFenceValue - 1;
+        
+        _deferredDestructor.Destroy(queue.NextFenceValue - 1);
     }
 
     private struct PerFrameData : IDisposable {

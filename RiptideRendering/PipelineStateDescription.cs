@@ -53,7 +53,7 @@ public struct RenderTargetFormats {
 
 public struct DepthStencilDescription {
     public static DepthStencilDescription Default => new() {
-        EnableDepth = false,
+        EnableDepth = true,
         DepthWrite = true,
         EnableStencil = false,
         StencilReadMask = 0xFF,
@@ -238,10 +238,11 @@ public struct BlendingDescription {
 }
 
 public struct PipelineStateDescription {
-    public required RasterizerDescription Rasterization;
-    public required DepthStencilDescription DepthStencil;
-    public required BlendingDescription Blending;
-    public required RenderTargetFormatDescription RenderTargetFormats;
-    public required GraphicsFormat DepthFormat;
-    public required PipelinePrimitiveTopology PrimitiveTopology;
+    public RasterizerDescription Rasterization;
+    public DepthStencilDescription DepthStencil;
+    public BlendingDescription Blending;
+    public RenderTargetFormatDescription RenderTargetFormats;
+    public GraphicsFormat DepthFormat;
+    public PipelinePrimitiveTopology PrimitiveTopology;
+    // public InputElementDescription[] InputLayout;
 }

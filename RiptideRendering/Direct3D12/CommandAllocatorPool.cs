@@ -2,7 +2,7 @@
 
 namespace RiptideRendering.Direct3D12;
 
-internal sealed unsafe class CommandAllocatorPool(D3D12RenderingContext context, CommandListType type) : IDisposable {
+internal sealed unsafe class CommandAllocatorPool(D3D12RenderingContext context, D3D12CommandListType type) : IDisposable {
     private readonly List<nint> _allocators = [];
     private readonly Queue<RetiredAllocator> _retiredAllocators = [];
     private readonly Stack<nint> _availableAllocators = [];
@@ -32,6 +32,8 @@ internal sealed unsafe class CommandAllocatorPool(D3D12RenderingContext context,
             Marshal.ThrowExceptionForHR(hr);
 
             _allocators.Add((nint)allocator);
+            
+            context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(CommandAllocatorPool)}: CommandAllocator created.");
 
             return allocator;
         }

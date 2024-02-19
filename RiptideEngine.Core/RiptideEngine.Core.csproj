@@ -27,11 +27,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
-		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <ProjectReference Include="..\RiptideMathematics\RiptideMathematics.csproj" />
 	</ItemGroup>
 

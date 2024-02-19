@@ -46,4 +46,4 @@ public struct RenderTargetViewDescription {
     }
 }
 
-public abstract class RenderTargetView : RiptideRcObject;
+public abstract class RenderTargetView : RenderingObject;

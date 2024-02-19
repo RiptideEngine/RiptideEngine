@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>Riptide.Laboratory</AssemblyName>
+        <RootNamespace>Riptide.Laboratory</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
+      <ProjectReference Include="..\RiptideFoundation\RiptideFoundation.csproj" />
+      <ProjectReference Include="..\RiptideMathematics\RiptideMathematics.csproj" />
+      <ProjectReference Include="..\RiptideRendering\RiptideRendering.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
+    </ItemGroup>
+
+</Project>

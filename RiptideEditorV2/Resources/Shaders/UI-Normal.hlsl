@@ -6,13 +6,13 @@
 
 struct PSInput {
     float4 position : SV_Position;
-    float2 uv : TexCoord;
+    float2 uv : TexCoord0;
     float4 color : Color;
 };
 
 StructuredBuffer<Vertex> _Vertices : register(t0, space0);
 
-cbuffer _RootConstants : register(b0, space0) {
+cbuffer _Transformation : register(b0, space0) {
     float4x4 _Perspective;
 };
 
@@ -27,6 +27,9 @@ PSInput vsmain(const uint vid : SV_VertexID) {
     return o;
 }
 
+Texture2D _MainTexture : register(t0, space1);
+SamplerState _Sampler : register(s0, space1);
+
 float4 psmain(PSInput i) : SV_Target {
-    return i.color;
+    return i.color * _MainTexture.Sample(_Sampler, i.uv);
 }

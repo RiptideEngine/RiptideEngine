@@ -75,16 +75,17 @@ partial class Converting {
             case GraphicsFormat.D16UNorm: output = Format.FormatD16Unorm; return true;
             case GraphicsFormat.D24UNormS8UInt: output = Format.FormatD24UnormS8Uint; return true;
             case GraphicsFormat.R24UNormX8Typeless: output = Format.FormatR24UnormX8Typeless; return true;
+            case GraphicsFormat.R24G8Typeless: output = Format.FormatR24G8Typeless; return true;
             case GraphicsFormat.X24TypelessG8UInt: output = Format.FormatX24TypelessG8Uint; return true;
             case GraphicsFormat.D32Float: output = Format.FormatD32Float; return true;
             case GraphicsFormat.D32FloatS8X24UInt: output = Format.FormatD32FloatS8X24Uint; return true;
             case GraphicsFormat.R32FloatX8X24Typeless: output = Format.FormatR32FloatX8X24Typeless; return true;
             case GraphicsFormat.X32TypelessG8X24Uint: output = Format.FormatX32TypelessG8X24Uint; return true;
+            case GraphicsFormat.R32G8X24Typeless: output = Format.FormatR32G8X24Typeless; return true;
             
             default: output = default; return false;
         }
     }
-    
     public static bool TryConvert(Format format, out GraphicsFormat output) {
         switch (format) {
             case Format.FormatUnknown: output = GraphicsFormat.Unknown; return true;
@@ -157,11 +158,29 @@ partial class Converting {
             case Format.FormatD16Unorm: output = GraphicsFormat.D16UNorm; return true;
             case Format.FormatD24UnormS8Uint: output = GraphicsFormat.D24UNormS8UInt; return true;
             case Format.FormatR24UnormX8Typeless: output = GraphicsFormat.R24UNormX8Typeless; return true;
+            case Format.FormatR24G8Typeless: output = GraphicsFormat.R24G8Typeless; return true;
             case Format.FormatX24TypelessG8Uint: output = GraphicsFormat.X24TypelessG8UInt; return true;
             case Format.FormatD32Float: output = GraphicsFormat.D32Float; return true;
             case Format.FormatD32FloatS8X24Uint: output = GraphicsFormat.D32FloatS8X24UInt; return true;
             case Format.FormatR32FloatX8X24Typeless: output = GraphicsFormat.R32FloatX8X24Typeless; return true;
             case Format.FormatX32TypelessG8X24Uint: output = GraphicsFormat.X32TypelessG8X24Uint; return true;
+            case Format.FormatR32G8X24Typeless: output = GraphicsFormat.R32G8X24Typeless; return true;
+            
+            default: output = default; return false;
+        }
+    }
+
+    public static bool TryConvertToDepthClearFormat(GraphicsFormat format, out Format output) {
+        switch (format) {
+            case GraphicsFormat.D16UNorm: output = Format.FormatD16Unorm; return true;
+            case GraphicsFormat.D24UNormS8UInt: output = Format.FormatD24UnormS8Uint; return true;
+            case GraphicsFormat.D32Float: output = Format.FormatD32Float; return true;
+            case GraphicsFormat.D32FloatS8X24UInt: output = Format.FormatD32FloatS8X24Uint; return true;
+            
+            case GraphicsFormat.R16Typeless: output = Format.FormatD16Unorm; return true;
+            case GraphicsFormat.R24G8Typeless: output = Format.FormatD24UnormS8Uint; return true;
+            case GraphicsFormat.R32Typeless: output = Format.FormatD32Float; return true;
+            case GraphicsFormat.R32G8X24Typeless: output = Format.FormatD32FloatS8X24Uint; return true;
             
             default: output = default; return false;
         }

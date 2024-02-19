@@ -6,7 +6,7 @@ public partial struct Color32(byte red, byte green, byte blue, byte alpha = 255)
     public byte B = blue;
     public byte A = alpha;
 
-    public Color32(byte grayscale, byte alpha) : this(grayscale, grayscale, grayscale, alpha) { }
+    public Color32(byte grayscale, byte alpha = 255) : this(grayscale, grayscale, grayscale, alpha) { }
 
     public override readonly bool Equals(object? other) => other is Color32 color && Equals(color);
 
@@ -30,4 +30,11 @@ public partial struct Color32(byte red, byte green, byte blue, byte alpha = 255)
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)] public static bool operator ==(Color32 left, Color32 right) => left.Equals(right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)] public static bool operator !=(Color32 left, Color32 right) => !(left == right);
+
+    public static explicit operator Color32(Color color) {
+        return new((byte)(color.R * 255.99f), (byte)(color.G * 255.99f), (byte)(color.B * 255.99f), (byte)(color.A * 255.99f));
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+    public static implicit operator Color(Color32 col32) => new(col32.R / 255f, col32.G / 255f, col32.B / 255f, col32.A / 255f);
 }

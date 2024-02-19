@@ -27,12 +27,12 @@ internal static partial class Converting {
         }
     }
 
-    public static bool TryConvert(ResourceRangeType input, out DescriptorRangeType output) {
+    public static bool TryConvert(DescriptorTableType input, out DescriptorRangeType output) {
         switch (input) {
-            case ResourceRangeType.ConstantBuffer: output = DescriptorRangeType.Cbv; return true;
-            case ResourceRangeType.ShaderResourceView: output = DescriptorRangeType.Srv; return true;
-            case ResourceRangeType.UnorderedAccess: output = DescriptorRangeType.Uav; return true;
-            case ResourceRangeType.Sampler: output = DescriptorRangeType.Sampler; return true;
+            case DescriptorTableType.ConstantBuffer: output = DescriptorRangeType.Cbv; return true;
+            case DescriptorTableType.ShaderResourceView: output = DescriptorRangeType.Srv; return true;
+            case DescriptorTableType.UnorderedAccessView: output = DescriptorRangeType.Uav; return true;
+            case DescriptorTableType.Sampler: output = DescriptorRangeType.Sampler; return true;
             default: output = default; return false;
         }
     }

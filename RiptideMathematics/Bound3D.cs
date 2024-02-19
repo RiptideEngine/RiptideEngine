@@ -1,6 +1,6 @@
 ﻿namespace RiptideMathematics;
 
-public partial struct Bound3D(Vector3 min, Vector3 max) : IEquatable<Bound3D>, IFormattable {
+public partial struct Bound3D(Vector3 min, Vector3 max) : IEquatable<Bound3D>, IFormattable, IEqualityOperators<Bound3D, Bound3D, bool> {
     public Vector3 Min = min;
     public Vector3 Max = max;
 
@@ -18,6 +18,7 @@ public partial struct Bound3D(Vector3 min, Vector3 max) : IEquatable<Bound3D>, I
     }
 
     public readonly Vector3 Size => Max - Min;
+    public readonly Vector3 Center => Min + Size / 2f;
 
     public Bound3D(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) : this(new(minX, minY, minZ), new(maxX, maxY, maxZ)) { }
 

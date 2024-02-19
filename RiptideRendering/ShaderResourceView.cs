@@ -73,4 +73,4 @@ public struct ShaderResourceViewDescription {
     }
 }
 
-public abstract class ShaderResourceView : RiptideRcObject;
+public abstract class ShaderResourceView : RenderingObject;

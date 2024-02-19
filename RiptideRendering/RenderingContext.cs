@@ -1,25 +1,16 @@
 ﻿namespace RiptideRendering;
 
-public enum QueueType {
-    Graphics,
-    Compute,
-    Copy,
-}
-
 public abstract partial class RenderingContext : IDisposable {
-    protected bool disposed;
-
     public abstract RenderingAPI RenderingAPI { get; }
     public abstract Factory Factory { get; }
-    public abstract CapabilityChecker CapabilityChecker { get; }
+    public abstract CapabilityChecker Capability { get; }
+    public abstract Synchronizer Synchronizer { get; }
 
     public abstract (GpuResource Resource, RenderTargetView View) SwapchainCurrentRenderTarget { get; }
 
-    public abstract ILoggingService? Logger { get; set; }
-
     public void ResizeSwapchain(uint width, uint height) {
-        ArgumentOutOfRangeException.ThrowIfZero(width, nameof(width));
-        ArgumentOutOfRangeException.ThrowIfZero(height, nameof(height));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width, nameof(width));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height, nameof(height));
 
         ResizeSwapchainImpl(width, height);
     }
@@ -27,10 +18,7 @@ public abstract partial class RenderingContext : IDisposable {
 
     public abstract void Present();
 
-    public abstract void WaitQueueIdle(QueueType type);
-    public abstract bool WaitFence(ulong fenceValue);
-    public abstract ulong ExecuteCommandList(CopyCommandList commandList);
-    public abstract ulong ExecuteCommandList(GraphicsCommandList commandList);
+    public abstract ulong ExecuteCommandList(CommandList commandList);
 
     protected abstract void Dispose(bool disposing);
 

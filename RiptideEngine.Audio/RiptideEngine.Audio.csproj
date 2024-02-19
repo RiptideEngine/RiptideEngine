@@ -9,19 +9,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.OpenAL" Version="2.17.1" />
+    <PackageReference Include="Silk.NET.OpenAL" Version="2.20.0" />
     <PackageReference Include="Silk.NET.OpenAL.Soft.Native" Version="1.21.1.2" />
   </ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj">
-			<Private>false</Private>
-		</ProjectReference>
-	</ItemGroup>
-
-	<ItemGroup>
-		<Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
-		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+		<ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

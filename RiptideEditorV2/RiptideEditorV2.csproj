@@ -9,8 +9,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Silk.NET.Input" Version="2.19.0" />
-      <PackageReference Include="Silk.NET.Windowing" Version="2.19.0" />
+      <PackageReference Include="Silk.NET.Input" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -21,13 +21,30 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
-        <Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+      <None Remove="Resources\Shaders\UI-Normal.hlsl" />
+      <EmbeddedResource Include="Resources\Shaders\UI-Normal.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="Resources\Shaders\UI-Normal.hlsl" />
-      <Content Include="Resources\Shaders\UI-Normal.hlsl">
+      <EmbeddedResource Include="Resources\Shaders\SDF-Font.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Resources\Fonts\" />
+      <Folder Include="Resources\Textures\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Resources\Fonts\arial.ttf" />
+      <Content Include="Resources\Fonts\arial.ttf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <None Remove="Resources\Textures\sheet_1.png" />
+      <Content Include="Resources\Textures\sheet_1.png">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
     </ItemGroup>

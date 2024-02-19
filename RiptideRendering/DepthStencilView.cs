@@ -37,4 +37,4 @@ public struct DepthStencilViewDescription {
     }
 }
 
-public abstract class DepthStencilView : RiptideRcObject;
+public abstract class DepthStencilView : RenderingObject;

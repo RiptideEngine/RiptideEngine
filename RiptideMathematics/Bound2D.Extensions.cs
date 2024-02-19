@@ -22,4 +22,8 @@ partial struct Bound2D {
     }
 
     public static Bound2D GetIntersect(Bound2D left, Bound2D right) => TryGetIntersect(left, right, out var intersect) ? intersect : default;
+
+    public static Bound2D Lerp(Bound2D a, Bound2D b, float weight) {
+        return new(Vector2.Lerp(a.Min, b.Min, weight), Vector2.Lerp(a.Max, b.Max, weight));
+    }
 }

@@ -1,4 +1,6 @@
-﻿namespace RiptideEngine.Audio;
+﻿using RiptideEngine.Core.Attributes;
+
+namespace RiptideEngine.Audio;
 
 [EnumExtension]
 public enum AudioFormat {
@@ -31,14 +33,4 @@ public enum AudioFormat {
     /// 32-bit floating point stereo buffer format.
     /// </summary>
     StereoFloat32,
-
-    /// <summary>
-    /// 64-bit floating point mono buffer format.
-    /// </summary>
-    MonoFloat64,
-
-    /// <summary>
-    /// 64-bit floating point stereo buffer format.
-    /// </summary>
-    StereoFloat64,
 }

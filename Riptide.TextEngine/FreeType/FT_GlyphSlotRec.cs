@@ -1,11 +1,11 @@
 ﻿namespace Riptide.LowLevel.TextEngine.FreeType;
 
-public readonly unsafe struct FT_GlyphSlotRec {
+public unsafe struct FT_GlyphSlotRec {
     public readonly FT_Library Library;
-    public readonly FT_Face Face;
-    public readonly FT_GlyphSlot Next;
+    public readonly FT_FaceRec* Face;
+    public readonly FT_GlyphSlotRec* Next;
     public readonly uint Glyph_index;
-    public readonly FT_Generic Generic;
+    public FT_Generic Generic;
 
     public readonly FT_Glyph_Metrics Metrics;
     public readonly FT_Fixed LinearHoriAdvance;

@@ -26,9 +26,9 @@ public enum GraphicsFormat {
     A8UNorm,
 
     D16UNorm,
-    D24UNormS8UInt, R24UNormX8Typeless, X24TypelessG8UInt,
+    D24UNormS8UInt, R24UNormX8Typeless, X24TypelessG8UInt, R24G8Typeless,
     D32Float,
-    D32FloatS8X24UInt, R32FloatX8X24Typeless, X32TypelessG8X24Uint,
+    D32FloatS8X24UInt, R32G8X24Typeless, R32FloatX8X24Typeless, X32TypelessG8X24Uint,
 }
 
 public static partial class GraphicsFormatExtensions {
@@ -82,6 +82,8 @@ public static partial class GraphicsFormatExtensions {
             case GraphicsFormat.X24TypelessG8UInt: stride = 4; return true;
             case GraphicsFormat.X32TypelessG8X24Uint: stride = 8; return true;
             case GraphicsFormat.R8G8B8A8Typeless: stride = 4; return true;
+            case GraphicsFormat.R24G8Typeless: stride = 4; return true;
+            case GraphicsFormat.R32G8X24Typeless: stride = 8; return true;
 
             default:
 #if DEBUG

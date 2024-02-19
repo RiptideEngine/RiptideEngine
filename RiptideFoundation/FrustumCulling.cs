@@ -36,50 +36,22 @@ public static class FrustumCulling {
         return true;
     }
 
-    public static unsafe bool Test(in Frustum frustum, Bound3D box) {
+    public static unsafe bool Test(in Frustum frustum, in Bound3D box) {
         fixed (SNPlane* pPlanes = &frustum.Top) {
             Vector3 boxMin = box.Min, boxMax = box.Max;
 
-            Vector3* vertices = stackalloc Vector3[8] {
-                boxMin,
-                boxMin with { X = boxMax.X },
-                boxMin with { Y = boxMax.Y },
-                boxMax with { Z = boxMin.Z },
-                boxMin with { Z = boxMax.Z },
-                boxMax with { Y = boxMin.Y },
-                boxMax with { X = boxMin.X },
-                boxMax,
-            };
-
             for (int i = 0; i < 6; i++) {
-                if (SNPlane.DotCoordinate(pPlanes[i], vertices[0]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[1]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[2]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[3]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[4]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[5]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[6]) < 0 &&
-                    SNPlane.DotCoordinate(pPlanes[i], vertices[7]) < 0) return false;
+                if (SNPlane.DotCoordinate(pPlanes[i], boxMin) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMin with { X = boxMax.X }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMin with { Y = boxMax.Y }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMax with { Z = boxMin.Z }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMin with { Z = boxMax.Z }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMax with { Y = boxMin.Y }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMax with { X = boxMin.X }) < 0 &&
+                    SNPlane.DotCoordinate(pPlanes[i], boxMax) < 0) return false;
             }
         }
 
         return true;
     }
-
-    //public static unsafe bool TestBox(in Frustum frustum, Vector3 boxOrigin, Vector3 boxSize) {
-    //    fixed (SNPlane* pPlanes = &frustum.Top) {
-    //        for (int i = 0; i < 6; i++) {
-    //            if (SNPlane.DotCoordinate(pPlanes[i], boxOrigin) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(boxSize.X, 0, 0)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(0, boxSize.Y, 0)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(boxSize.X, boxSize.Y, 0)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(0, 0, boxSize.Z)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(boxSize.X, 0, boxSize.Z)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + new Vector3(0, boxSize.Y, boxSize.Z)) < 0 &&
-    //                SNPlane.DotCoordinate(pPlanes[i], boxOrigin + boxSize) < 0) return false;
-    //        }
-    //    }
-
-    //    return true;
-    //}
 }

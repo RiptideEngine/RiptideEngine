@@ -15,6 +15,7 @@ public enum TextureFlags {
     
     RenderTarget = 1 << 0,
     DepthStencil = 1 << 1,
+    UnorderedAccess = 1 << 2,
 }
 
 public struct TextureDescription {

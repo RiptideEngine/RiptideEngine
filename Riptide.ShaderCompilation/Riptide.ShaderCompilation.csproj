@@ -8,16 +8,18 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Silk.NET.Direct3D.Compilers" Version="2.19.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
-        <Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
+      <PackageReference Include="Silk.NET.Direct3D.Compilers" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.Direct3D12" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.SPIRV" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.SPIRV.Cross" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.SPIRV.Cross.Native" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.SPIRV.Reflect" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.SPIRV.Reflect.Native" Version="2.20.0" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
+      <ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
 </Project>

@@ -18,12 +18,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="Silk.NET.Direct3D.Compilers" Version="2.18.0" />
-		<PackageReference Include="Silk.NET.Direct3D12" Version="2.18.0" />
-	  <PackageReference Include="Silk.NET.Windowing" Version="2.18.0" />
+		<PackageReference Include="Silk.NET.Direct3D12" Version="2.20.0" />
+	  <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	  <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
 	</ItemGroup>
 
@@ -33,7 +33,6 @@
 	    <AutoGen>True</AutoGen>
 	    <DependentUpon>ExceptionMessages.resx</DependentUpon>
 	  </Compile>
-	  <Compile Remove="Direct3D12 (Obsoleted)\**" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -41,23 +40,6 @@
 	    <Generator>ResXFileCodeGenerator</Generator>
 	    <LastGenOutput>ExceptionMessages.Designer.cs</LastGenOutput>
 	  </EmbeddedResource>
-	  <EmbeddedResource Remove="Direct3D12 (Obsoleted)\**" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="Utils\" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Reference Include="RPCSToolkit">
-	    <HintPath>..\Libraries\RPCSToolkit.dll</HintPath>
-	  </Reference>
-
-		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Remove="Direct3D12 (Obsoleted)\**" />
 	</ItemGroup>
 
 </Project>

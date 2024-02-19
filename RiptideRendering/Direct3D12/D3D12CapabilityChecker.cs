@@ -5,8 +5,8 @@ namespace RiptideRendering.Direct3D12;
 internal sealed unsafe class D3D12CapabilityChecker : CapabilityChecker {
     private readonly D3D12RenderingContext _context;
 
-    public override bool SupportShaderSpecifiedStencilRef { get; } = false;
-    public bool CopyQuerySupportTimestampQuery { get; }
+    public override bool SupportShaderSpecifiedStencilRef { get; }
+    public override bool SupportMeshShader { get; }
 
     public D3D12CapabilityChecker(D3D12RenderingContext context) {
         _context = context;
@@ -16,10 +16,10 @@ internal sealed unsafe class D3D12CapabilityChecker : CapabilityChecker {
 
         SupportShaderSpecifiedStencilRef = options.PSSpecifiedStencilRefSupported;
 
-        FeatureDataD3D12Options3 options3;
-        context.Device->CheckFeatureSupport(Feature.D3D12Options3, &options3, (uint)sizeof(FeatureDataD3D12Options3));
+        FeatureDataD3D12Options7 options7;
+        context.Device->CheckFeatureSupport(Feature.D3D12Options7, &options7, (uint)sizeof(FeatureDataD3D12Options7));
 
-        CopyQuerySupportTimestampQuery = options3.CopyQueueTimestampQueriesSupported;
+        SupportMeshShader = options7.MeshShaderTier >= MeshShaderTier.Tier1;
     }
 
     public override TextureSupportFlags CheckTextureFormatSupport(GraphicsFormat format) {
@@ -40,5 +40,16 @@ internal sealed unsafe class D3D12CapabilityChecker : CapabilityChecker {
             TextureDimension.Texture3D => (2048, 2048),
             _ => (0, 0),
         };
+    }
+
+    public override bool CheckTextureMipmapSupport(GraphicsFormat format) {
+        if (!Converting.TryConvert(format, out var dxgiFormat)) return false;
+        
+        FeatureDataFormatSupport data = new() {
+            Format = dxgiFormat,
+        };
+        _context.Device->CheckFeatureSupport(Feature.FormatSupport, &data, (uint)sizeof(FeatureDataFormatSupport));
+
+        return data.Support1.HasFlag(FormatSupport1.Mip);
     }
 }

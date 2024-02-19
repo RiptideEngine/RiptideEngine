@@ -1,4 +1,4 @@
-﻿using RPCSToolkit;
+﻿using RiptideEngine.Core.Allocation;
 
 namespace RiptideFoundation.Database;
 

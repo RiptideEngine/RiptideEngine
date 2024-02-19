@@ -8,7 +8,21 @@ public partial struct Rectangle2D(Vector2 position, Vector2 size) : IEquatable<R
     public readonly float Perimeter => 2 * (Size.X + Size.Y);
     public readonly Vector2 Center => Position + Size / 2;
 
-    public Rectangle2D(float px, float py, float sx, float sy) : this(new(px, py), new(sx, sy)) { }
+    public Rectangle2D(float x, float y, Vector2 size) : this(new(x, y), size) { }
+    public Rectangle2D(Vector2 position, float width, float height) : this(position, new(width, height)) { }
+    public Rectangle2D(float x, float y, float width, float height) : this(new(x, y), new(width, height)) { }
+
+    public void Deconstruct(out Vector2 position, out Vector2 size) {
+        position = Position;
+        size = Size;
+    }
+
+    public void Deconstruct(out float x, out float y, out float width, out float height) {
+        x = Position.X;
+        y = Position.Y;
+        width = Size.X;
+        height = Size.Y;
+    }
 
     public override readonly int GetHashCode() => HashCode.Combine(Position, Size);
 

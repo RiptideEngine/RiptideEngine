@@ -2,7 +2,7 @@
 
 namespace RiptideEngine.Core.Utils;
 
-public static class LinqExtensions {
+public static partial class LinqExtensions {
     public static bool AllComparableEquals<T>(this IEnumerable<T> enumerable, T? value) where T : IComparable<T> {
         foreach (var item in enumerable) {
             if (item.CompareTo(value) != 0) return false;

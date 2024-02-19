@@ -2,13 +2,10 @@
 
 namespace RiptideRendering;
 
-public struct ContextOptions(RenderingAPI api, IWindow outputWindow) {
-    public RenderingAPI Api = api;
-    public IWindow OutputWindow = outputWindow;
-}
+public readonly record struct ContextOptions(RenderingAPI Api, IWindow OutputWindow, GraphicsFormat SwapchainFormat = GraphicsFormat.R8G8B8A8UNorm, ILoggingService? Logger = null);
 
 partial class RenderingContext {
-    public static RenderingContext? CreateContext(ContextOptions options) {
+    public static RenderingContext CreateContext(ContextOptions options) {
         if (!Environment.Is64BitOperatingSystem) throw new PlatformNotSupportedException("Current process is not a 64-bit process.");
 
         if (options.Api == RenderingAPI.None) throw new ArgumentException("Cannot create rendering context with API value of 'None'.", nameof(options));

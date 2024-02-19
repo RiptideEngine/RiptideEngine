@@ -1,4 +1,4 @@
-﻿using RPCSToolkit.Attributes;
+﻿using RiptideEngine.Core.Attributes;
 
 namespace RiptideEngine.Core {
     [EnumExtension]

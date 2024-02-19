@@ -126,4 +126,10 @@
   <data name="ServiceAlreadyRegistered" xml:space="preserve">
     <value>Service of interface type '{0}' has already been registered.</value>
   </data>
+  <data name="OptionalHasNoValue" xml:space="preserve">
+    <value>Optional structure contains no value.</value>
+  </data>
+  <data name="ResultHasNoValue" xml:space="preserve">
+    <value>Result structure contains no value.</value>
+  </data>
 </root>

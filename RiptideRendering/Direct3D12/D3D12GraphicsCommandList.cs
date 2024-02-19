@@ -4,7 +4,7 @@ using Silk.NET.Maths;
 
 namespace RiptideRendering.Direct3D12;
 
-internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
+internal sealed unsafe class D3D12GraphicsCommandList : CommandList {
     public const string UnnamedCommandList = $"<Unnamed {nameof(D3D12GraphicsCommandList)}>.{nameof(pCommandList)}";
 
     private readonly D3D12RenderingContext _context;
@@ -14,7 +14,8 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
 
     private readonly List<ResourceBarrier> _barriers;
 
-    private readonly DescriptorCommitter _descCommitter;
+    private readonly UploadBufferProvider _uploadProvider;
+    private readonly GraphicsDescriptorCommitter _descCommitter;
 
     public ID3D12GraphicsCommandList* CommandList => pCommandList;
 
@@ -34,9 +35,10 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
     public D3D12GraphicsCommandList(D3D12RenderingContext context) {
         _context = context;
 
-        pAllocator = _context.Queues.GraphicQueue.RequestAllocator();
+        var queue = _context.Queues.GraphicsQueue;
+        pAllocator = queue.RequestAllocator();
         
-        int hr = context.Device->CreateCommandList(0, CommandListType.Direct, pAllocator, null, SilkMarshal.GuidPtrOf<ID3D12GraphicsCommandList>(), (void**)pCommandList.GetAddressOf());
+        int hr = context.Device->CreateCommandList(0, D3D12CommandListType.Direct, pAllocator, null, SilkMarshal.GuidPtrOf<ID3D12GraphicsCommandList>(), (void**)pCommandList.GetAddressOf());
         Marshal.ThrowExceptionForHR(hr);
         
         Helper.SetName(pCommandList.Handle, UnnamedCommandList);
@@ -45,12 +47,199 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
         
         _barriers = [];
         IsClosed = false;
+        
+        _uploadProvider = new();
+        _uploadProvider.RequestResource(context.UploadBufferPool, D3D12.DefaultResourcePlacementAlignment, D3D12CommandListType.Direct, queue.LastCompletedFenceValue);
     }
 
-    public override void TranslateResourceState(GpuResource resource, ResourceTranslateStates destinationStates) {
+    public override void TranslateResourceState(GpuResource resource, ResourceTranslateStates destinationState) {
+        TranslateResourceState(resource, 0xFFFFFFFF, destinationState);
+    }
+
+    public override void TranslateResourceState(GpuResource resource, uint subresource, ResourceTranslateStates destinationState) {
         EnsureNotClosed();
         
-        CommandListOperations.AddResourceTransitionBarrier(resource, destinationStates, _barriers);
+        CommandListOperations.AddResourceTransitionBarrier(resource, subresource, destinationState, _barriers);
+    }
+
+    public override void CopyResource(GpuResource dest, GpuResource source) {
+        ArgumentNullException.ThrowIfNull(dest, nameof(dest));
+        ArgumentNullException.ThrowIfNull(source, nameof(source));
+        if (dest == source) throw new ArgumentException("Source and destination resources must be different resource.");
+        
+        Debug.Assert(dest is D3D12GpuBuffer or D3D12GpuTexture, "dest is D3D12GpuBuffer or D3D12GpuTexture");
+        Debug.Assert(source is D3D12GpuBuffer or D3D12GpuTexture, "source is D3D12GpuBuffer or D3D12GpuTexture");
+        
+        EnsureNotClosed();
+
+        pCommandList.CopyResource((ID3D12Resource*)dest.NativeResourceHandle, (ID3D12Resource*)source.NativeResourceHandle);
+    }
+
+    public override void CopyBufferRegion(GpuBuffer dest, ulong destOffset, GpuBuffer source, ulong sourceOffset, ulong numBytes) {
+        ArgumentNullException.ThrowIfNull(dest, nameof(dest));
+        ArgumentNullException.ThrowIfNull(source, nameof(source));
+        
+        Debug.Assert(dest is D3D12GpuBuffer, "dest is D3D12GpuBuffer");
+        Debug.Assert(source is D3D12GpuBuffer, "source is D3D12GpuBuffer");
+        
+        EnsureNotClosed();
+        
+        pCommandList.CopyBufferRegion((ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(dest).NativeResourceHandle, destOffset, (ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(source).NativeResourceHandle, sourceOffset, numBytes);
+    }
+    
+    public override void UpdateBuffer(GpuBuffer buffer, ReadOnlySpan<byte> data) {
+        EnsureNotClosed();
+
+        Debug.Assert(buffer is D3D12GpuBuffer, "dest is D3D12GpuBuffer");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(buffer).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        uint writeAmount = uint.Min((uint)rdesc.Width, (uint)data.Length);
+        var uploadRegion = AllocateUploadRegion(writeAmount, 1);
+        
+        data.CopyTo(new(uploadRegion.Pointer, (int)writeAmount));
+        
+        FlushResourceBarriers();
+        pCommandList.CopyBufferRegion(pResource, 0, uploadRegion.Resource, uploadRegion.Offset, writeAmount);
+    }
+
+    public override void UpdateBuffer(GpuBuffer buffer, uint offset, ReadOnlySpan<byte> data) {
+        EnsureNotClosed();
+
+        Debug.Assert(buffer is D3D12GpuBuffer, "dest is D3D12GpuBuffer");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(buffer).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        if (offset >= rdesc.Width) return;
+
+        uint writeAmount = uint.Min((uint)data.Length, (uint)(rdesc.Width - offset));
+        var uploadRegion = AllocateUploadRegion(writeAmount, 1);
+        
+        data.CopyTo(new(uploadRegion.Pointer, (int)writeAmount));
+        
+        FlushResourceBarriers();
+        pCommandList.CopyBufferRegion(pResource, offset, uploadRegion.Resource, uploadRegion.Offset, writeAmount);
+    }
+
+    public override void UpdateBuffer<T>(GpuBuffer buffer, BufferWriter<T> writer, T state) {
+        EnsureNotClosed();
+        
+        Debug.Assert(buffer is D3D12GpuBuffer, "dest is D3D12GpuBuffer");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(buffer).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        var uploadRegion = AllocateUploadRegion(rdesc.Width, 1);
+        writer(new(uploadRegion.Pointer, (int)rdesc.Width), state);
+        
+        FlushResourceBarriers();
+        pCommandList.CopyBufferRegion(pResource, 0, uploadRegion.Resource, uploadRegion.Offset, rdesc.Width);
+    }
+
+    public override void UpdateBuffer<T>(GpuBuffer buffer, uint offset, uint length, BufferWriter<T> writer, T arg) {
+        EnsureNotClosed();
+        
+        Debug.Assert(buffer is D3D12GpuBuffer, "dest is D3D12GpuBuffer");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(buffer).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        if (offset >= rdesc.Width) return;
+
+        uint writeAmount = uint.Min(length, (uint)(rdesc.Width - offset));
+        var uploadRegion = AllocateUploadRegion(writeAmount, 1);
+
+        writer(new(uploadRegion.Pointer, (int)writeAmount), arg);
+        
+        FlushResourceBarriers();
+        pCommandList.CopyBufferRegion(pResource, offset, uploadRegion.Resource, uploadRegion.Offset, writeAmount);
+    }
+    
+    public override void UpdateTexture(GpuTexture texture, uint subresource, ReadOnlySpan<byte> data) {
+        EnsureNotClosed();
+        
+        Debug.Assert(texture is D3D12GpuTexture, "dest is D3D12GpuTexture");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuTexture>(texture).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        PlacedSubresourceFootprint footprint;
+        uint numRows;
+        ulong rowSize;
+        ulong totalBytes;
+        
+        _context.Device->GetCopyableFootprints(&rdesc, subresource, 1, 0, &footprint, &numRows, &rowSize, &totalBytes);
+
+        if ((ulong)data.Length < numRows * rowSize) throw new ArgumentException($"Not enough data to update texture's subresource {subresource} of texture, {numRows * rowSize} bytes expected, but only {data.Length} bytes provided.");
+
+        var uploadRegion = AllocateUploadRegion(totalBytes, D3D12.TextureDataPlacementAlignment);
+        footprint.Offset = uploadRegion.Offset;
+        
+        var pitch = footprint.Footprint.RowPitch;
+
+        fixed (byte* ptr = data) {
+            byte* pSrc = ptr;
+            byte* pDest = uploadRegion.Pointer;
+            
+            for (uint r = 0; r < numRows; r++) {
+                Unsafe.CopyBlock(pDest, pSrc, (uint)rowSize);
+
+                pSrc += rowSize;
+                pDest += pitch;
+            }
+        }
+        
+        FlushResourceBarriers();
+        pCommandList.CopyTextureRegion(new TextureCopyLocation {
+            Type = TextureCopyType.SubresourceIndex,
+            PResource = pResource,
+            SubresourceIndex = subresource,
+        }, 0, 0, 0, new TextureCopyLocation {
+            Type = TextureCopyType.PlacedFootprint,
+            PResource = uploadRegion.Resource,
+            PlacedFootprint = footprint,
+        }, null);
+    }
+    
+    public override void UpdateTexture<T>(GpuTexture texture, uint subresource, TextureWriter<T> writer, T arg) {
+        EnsureNotClosed();
+        
+        Debug.Assert(texture is D3D12GpuTexture, "dest is D3D12GpuTexture");
+        
+        ID3D12Resource* pResource = (ID3D12Resource*)Unsafe.As<D3D12GpuTexture>(texture).NativeResourceHandle;
+        ResourceDesc rdesc = pResource->GetDesc();
+
+        PlacedSubresourceFootprint footprint;
+        uint numRows;
+        ulong rowSize;
+        ulong totalBytes;
+        
+        _context.Device->GetCopyableFootprints(&rdesc, subresource, 1, 0, &footprint, &numRows, &rowSize, &totalBytes);
+
+        var uploadRegion = AllocateUploadRegion(totalBytes, D3D12.TextureDataPlacementAlignment);
+        footprint.Offset = uploadRegion.Offset;
+        
+        var pitch = footprint.Footprint.RowPitch;
+
+        byte* pDest = uploadRegion.Pointer;
+        
+        for (uint r = 0; r < numRows; r++) {
+            writer(new(pDest, (int)rowSize), r, arg);
+            pDest += pitch;
+        }
+        
+        FlushResourceBarriers();
+        pCommandList.CopyTextureRegion(new TextureCopyLocation {
+            Type = TextureCopyType.SubresourceIndex,
+            PResource = pResource,
+            SubresourceIndex = subresource,
+        }, 0, 0, 0, new TextureCopyLocation {
+            Type = TextureCopyType.PlacedFootprint,
+            PResource = uploadRegion.Resource,
+            PlacedFootprint = footprint,
+        }, null);
     }
 
     public override void ClearRenderTarget(RenderTargetView view, Color color) => ClearRenderTarget(view, color, []);
@@ -66,6 +255,25 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
         }
     }
 
+    public override void ClearDepthStencil(DepthStencilView view, DepthClearFlags clearFlags, float depth, byte stencil) => ClearDepthStencil(view, clearFlags, depth, stencil, []);
+    public override void ClearDepthStencil(DepthStencilView view, DepthClearFlags clearFlags, float depth, byte stencil, ReadOnlySpan<Bound2DInt> areas) {
+        EnsureNotClosed();
+        
+        Debug.Assert(view is D3D12DepthStencilView, "view is D3D12DepthStencilView");
+        
+        FlushResourceBarriers();
+
+        fixed (Bound2DInt* pAreas = areas) {
+            pCommandList.ClearDepthStencilView(Unsafe.As<D3D12DepthStencilView>(view).Handle, (ClearFlags)clearFlags, depth, stencil, (uint)areas.Length, (Box2D<int>*)pAreas);
+        }
+    }
+
+    public override void SetStencilRef(byte stencil) {
+        EnsureNotClosed();
+        
+        pCommandList.OMSetStencilRef(stencil);
+    }
+
     public override void SetRenderTarget(RenderTargetView view, DepthStencilView? depthView) {
         EnsureNotClosed();
         
@@ -79,8 +287,31 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
             Debug.Assert(depthView is D3D12DepthStencilView, "depthView is D3D12DepthStencilView");
 
             CpuDescriptorHandle dsvHandle = Unsafe.As<D3D12DepthStencilView>(depthView).Handle;
-            
             pCommandList.OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
+        }
+    }
+
+    public override void SetRenderTargets(ReadOnlySpan<RenderTargetView> view, DepthStencilView? depthView) {
+        EnsureNotClosed();
+
+        var count = int.Min(8, view.Length);
+        Span<CpuDescriptorHandle> handles = stackalloc CpuDescriptorHandle[count];
+
+        for (int i = 0; i < count; i++) {
+            Debug.Assert(view[i] is D3D12RenderTargetView, "view[i] is D3D12RenderTargetView");
+
+            handles[i] = Unsafe.As<D3D12RenderTargetView>(view[i]).Handle;
+        }
+
+        fixed (CpuDescriptorHandle* pHandles = handles) {
+            if (depthView == null) {
+                pCommandList.OMSetRenderTargets((uint)count, pHandles, false, (CpuDescriptorHandle*)null);
+            } else {
+                Debug.Assert(depthView is D3D12DepthStencilView, "depthView is D3D12DepthStencilView");
+                
+                CpuDescriptorHandle dsvHandle = Unsafe.As<D3D12DepthStencilView>(depthView).Handle;
+                pCommandList.OMSetRenderTargets((uint)count, pHandles, false, &dsvHandle);
+            }
         }
     }
 
@@ -168,17 +399,6 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
         }
     }
 
-    public override void SetResourceSignature(ResourceSignature signature) {
-        EnsureNotClosed();
-        
-        Debug.Assert(signature is D3D12ResourceSignature, "signature is D3D12ResourceSignature");
-
-        var d3d12sig = Unsafe.As<D3D12ResourceSignature>(signature);
-
-        pCommandList.SetGraphicsRootSignature(d3d12sig.RootSignature);
-        _descCommitter.InitializeSignature(d3d12sig);
-    }
-
     public override void SetPipelineState(PipelineState pipelineState) {
         EnsureNotClosed();
         
@@ -186,33 +406,140 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
 
         pCommandList.SetPipelineState(Unsafe.As<D3D12PipelineState>(pipelineState).PipelineState);
     }
+    
+    public override void SetGraphicsResourceSignature(ResourceSignature signature) {
+        EnsureNotClosed();
+        
+        Debug.Assert(signature is D3D12ResourceSignature, "signature is D3D12ResourceSignature");
 
-    public override void SetGraphicsConstants(uint parameterIndex, ReadOnlySpan<uint> constants, uint offset) {
+        var d3d12sig = Unsafe.As<D3D12ResourceSignature>(signature);
+
+        pCommandList.SetGraphicsRootSignature(d3d12sig.RootSignature);
+        _descCommitter.SetGraphicsResourceSignature(d3d12sig);
+    }
+
+    public override void SetGraphicsConstants(uint parameterIndex, ReadOnlySpan<ConstantParameterValue> constants, uint offset) {
         EnsureNotClosed();
 
-        fixed (uint* pConstants = constants) {
+        fixed (ConstantParameterValue* pConstants = constants) {
             pCommandList.SetGraphicsRoot32BitConstants(parameterIndex, (uint)constants.Length, pConstants, offset);
         }
     }
 
-    public override void SetGraphicsShaderResourceView(uint parameterIndex, uint tableOffset, ShaderResourceView view) {
+    public override void SetGraphicsConstantBufferView(uint parameterIndex, uint descriptorIndex, GpuBuffer? buffer, uint offset, uint size) {
+        EnsureNotClosed();
+        
+        if (!_descCommitter.TryGetGraphicsResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+        FlushResourceBarriers();
+        
+        if (buffer == null || size == 0) {
+            _context.Device->CreateConstantBufferView(new ConstantBufferViewDesc {
+                BufferLocation = 0,
+                SizeInBytes = 0,
+            }, handle);
+        } else {
+            Debug.Assert(buffer is D3D12GpuBuffer, "buffer is D3D12GpuBuffer");
+
+            _context.Device->CreateConstantBufferView(new ConstantBufferViewDesc {
+                BufferLocation = ((ID3D12Resource*)Unsafe.As<D3D12GpuBuffer>(buffer).NativeResourceHandle)->GetGPUVirtualAddress() + offset,
+                SizeInBytes = size,
+            }, handle);
+        }
+    }
+
+    public override void SetGraphicsShaderResourceView(uint parameterIndex, uint descriptorIndex, ShaderResourceView view) {
         EnsureNotClosed();
 
         Debug.Assert(view is D3D12ShaderResourceView, "view is D3D12ShaderResourceView");
         
-        if (!_descCommitter.TryGetGraphicsResourceDescriptor(parameterIndex, tableOffset, out var handle)) return;
+        if (!_descCommitter.TryGetGraphicsResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
         
         FlushResourceBarriers();
-
         _context.Device->CopyDescriptorsSimple(1, handle, Unsafe.As<D3D12ShaderResourceView>(view).Handle, DescriptorHeapType.CbvSrvUav);
+    }
+
+    public override void NullifyGraphicsShaderResourceView(uint parameterIndex, uint descriptorIndex, ShaderResourceViewDimension dimension) {
+        EnsureNotClosed();
+        
+        if (!_descCommitter.TryGetGraphicsResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+        
+        FlushResourceBarriers();
+        switch (dimension) {
+            case ShaderResourceViewDimension.Buffer:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Buffer,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32Float,
+                    Buffer = new() {
+                        FirstElement = 0,
+                        NumElements = 0,
+                    }
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture1D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture1D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture1DArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture1Darray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture2D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture2D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture2DArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture2Darray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture3D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture3D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.TextureCube:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texturecube,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.TextureCubeArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texturecubearray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+        }
     }
 
     public override void Draw(uint vertexCount, uint instanceCount, uint startVertex, uint startInstance) {
         EnsureNotClosed();
         
         FlushResourceBarriers();
-        
-        _descCommitter.Commit(pCommandList);
+        _descCommitter.CommitGraphics(pCommandList);
         
         pCommandList.DrawInstanced(vertexCount, instanceCount, startVertex, startInstance);
     }
@@ -221,10 +548,187 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
         EnsureNotClosed();
         
         FlushResourceBarriers();
-
-        _descCommitter.Commit(pCommandList);
+        _descCommitter.CommitGraphics(pCommandList);
         
         pCommandList.DrawIndexedInstanced(indexCount, instanceCount, startIndex, 0, startInstance);
+    }
+
+    public override void SetComputeResourceSignature(ResourceSignature signature) {
+        EnsureNotClosed();
+        
+        Debug.Assert(signature is D3D12ResourceSignature, "signature is D3D12ResourceSignature");
+
+        var d3d12sig = Unsafe.As<D3D12ResourceSignature>(signature);
+
+        pCommandList.SetComputeRootSignature(d3d12sig.RootSignature);
+        _descCommitter.SetComputeResourceSignature(d3d12sig);
+    }
+
+    public override void SetComputeShaderResourceView(uint parameterIndex, uint descriptorIndex, ShaderResourceView view) {
+        EnsureNotClosed();
+
+        Debug.Assert(view is D3D12ShaderResourceView, "view is D3D12ShaderResourceView");
+        
+        if (!_descCommitter.TryGetComputeResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+        
+        FlushResourceBarriers();
+        _context.Device->CopyDescriptorsSimple(1, handle, Unsafe.As<D3D12ShaderResourceView>(view).Handle, DescriptorHeapType.CbvSrvUav);
+    }
+    
+    public override void NullifyComputeShaderResourceView(uint parameterIndex, uint descriptorIndex, ShaderResourceViewDimension dimension) {
+        EnsureNotClosed();
+        
+        if (!_descCommitter.TryGetComputeResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+        
+        FlushResourceBarriers();
+        switch (dimension) {
+            case ShaderResourceViewDimension.Buffer:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Buffer,
+                    Format = Format.FormatR32Float,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Buffer = new() {
+                        FirstElement = 0,
+                        NumElements = 0,
+                    }
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture1D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture1D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture1DArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture1Darray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture2D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture2D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture2DArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture2Darray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.Texture3D:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texture3D,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.TextureCube:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texturecube,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+            
+            case ShaderResourceViewDimension.TextureCubeArray:
+                _context.Device->CreateShaderResourceView(null, new ShaderResourceViewDesc {
+                    ViewDimension = SrvDimension.Texturecubearray,
+                    Shader4ComponentMapping = Helper.DefaultShader4ComponentMapping,
+                    Format = Format.FormatR32G32B32A32Float,
+                }, handle);
+                break;
+        }
+    }
+
+    public override void SetComputeUnorderedAccessView(uint parameterIndex, uint descriptorIndex, UnorderedAccessView view) {
+        EnsureNotClosed();
+
+        Debug.Assert(view is D3D12UnorderedAccessView, "view is D3D12UnorderedAccessView");
+        
+        if (!_descCommitter.TryGetComputeResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+        
+        FlushResourceBarriers();
+        _context.Device->CopyDescriptorsSimple(1, handle, Unsafe.As<D3D12UnorderedAccessView>(view).Handle, DescriptorHeapType.CbvSrvUav);
+    }
+
+    public override void NullifyComputeUnorderedAccessView(uint parameterIndex, uint descriptorIndex, UnorderedAccessViewDimension dimension) {
+        EnsureNotClosed();
+        
+        if (!_descCommitter.TryGetComputeResourceDescriptor(parameterIndex, descriptorIndex, out var handle)) return;
+
+        FlushResourceBarriers();
+        switch (dimension) {
+            case UnorderedAccessViewDimension.Buffer:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Buffer,
+                    Format = Format.FormatR32Float,
+                }, handle);
+                break;
+            
+            case UnorderedAccessViewDimension.Texture1D:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Texture1D,
+                    Format = Format.FormatR32G32B32Float,
+                }, handle);
+                break;
+            
+            case UnorderedAccessViewDimension.Texture1DArray:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Texture1Darray,
+                    Format = Format.FormatR32G32B32Float,
+                }, handle);
+                break;
+            
+            case UnorderedAccessViewDimension.Texture2D:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Texture2D,
+                    Format = Format.FormatR32G32B32Float,
+                }, handle);
+                break;
+            
+            case UnorderedAccessViewDimension.Texture2DArray:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Texture2Darray,
+                    Format = Format.FormatR32G32B32Float,
+                }, handle);
+                break;
+            
+            case UnorderedAccessViewDimension.Texture3D:
+                _context.Device->CreateUnorderedAccessView(null, null, new UnorderedAccessViewDesc {
+                    ViewDimension = UavDimension.Texture3D,
+                    Format = Format.FormatR32G32B32Float,
+                }, handle);
+                break;
+        }
+    }
+
+    public override void SetComputeConstants(uint parameterIndex, ReadOnlySpan<ConstantParameterValue> constants, uint offset) {
+        EnsureNotClosed();
+
+        fixed (ConstantParameterValue* pConstants = constants) {
+            pCommandList.SetComputeRoot32BitConstants(parameterIndex, (uint)constants.Length, pConstants, offset);
+        }
+    }
+
+    public override void Dispatch(uint threadGroupX, uint threadGroupY, uint threadGroupZ) {
+        EnsureNotClosed();
+        FlushResourceBarriers();
+        
+        _descCommitter.CommitCompute(pCommandList);
+
+        pCommandList.Dispatch(threadGroupX, threadGroupY, threadGroupZ);
     }
 
     public override void Close() {
@@ -238,14 +742,29 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
 
     public override void Reset() {
         if (!IsClosed) return;
-        
-        var queue = _context.Queues.GraphicQueue;
-        queue.ReturnAllocator(queue.NextFenceValue, pAllocator);
+
+        var queue = _context.Queues.GraphicsQueue;
+        queue.ReturnAllocator(queue.NextFenceValue - 1, pAllocator);
         pAllocator = queue.RequestAllocator();
+        
+        _uploadProvider.PreserveCurrentResource();
+        _uploadProvider.ReturnResources(_context.UploadBufferPool, D3D12CommandListType.Direct, queue.NextFenceValue - 1);
 
         pCommandList.Reset(pAllocator, (ID3D12PipelineState*)null);
         
         IsClosed = false;
+    }
+    
+    private UploadBufferProvider.AllocatedRegion AllocateUploadRegion(ulong size, uint alignment) {
+        if (_uploadProvider.TryAllocate(size, alignment, out var region)) return region;
+        
+        _uploadProvider.PreserveCurrentResource();
+        _uploadProvider.RequestResource(_context.UploadBufferPool, size, D3D12CommandListType.Direct, _context.Queues.GraphicsQueue.LastCompletedFenceValue);
+
+        bool suballoc = _uploadProvider.TryAllocate(size, alignment, out region);
+        Debug.Assert(suballoc, "suballoc");
+
+        return region;
     }
 
     private void EnsureNotClosed() {
@@ -269,8 +788,11 @@ internal sealed unsafe class D3D12GraphicsCommandList : GraphicsCommandList {
         pCommandList.Release();
         pCommandList = default;
 
-        var queue = _context.Queues.GraphicQueue;
-        queue.ReturnAllocator(queue.NextFenceValue, pAllocator);
+        var queue = _context.Queues.GraphicsQueue;
+        queue.ReturnAllocator(queue.NextFenceValue - 1, pAllocator);
         pAllocator = null!;
+        
+        _uploadProvider.PreserveCurrentResource();
+        _uploadProvider.ReturnResources(_context.UploadBufferPool, D3D12CommandListType.Direct, queue.NextFenceValue - 1);
     }
 }

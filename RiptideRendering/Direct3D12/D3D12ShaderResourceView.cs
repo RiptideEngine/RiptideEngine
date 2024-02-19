@@ -5,7 +5,7 @@ namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class D3D12ShaderResourceView : ShaderResourceView {
     public CpuDescriptorHandle Handle { get; private set; }
-    
+
     public D3D12ShaderResourceView(D3D12RenderingContext context, GpuResource resource, ShaderResourceViewDescription desc) {
         Unsafe.SkipInit(out ShaderResourceViewDesc srvdesc);
         ID3D12Resource* pResource;

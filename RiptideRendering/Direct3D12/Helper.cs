@@ -30,4 +30,8 @@ internal static unsafe class Helper {
             }
         });
     }
+    
+    public static uint CalcSubresource(uint MipSlice, uint ArraySlice, uint PlaneSlice, uint MipLevels, uint ArraySize) {
+        return MipSlice + ArraySlice * MipLevels + PlaneSlice * MipLevels * ArraySize;
+    }
 }

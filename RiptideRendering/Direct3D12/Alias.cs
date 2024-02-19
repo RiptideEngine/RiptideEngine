@@ -1,0 +1,1 @@
+﻿global using D3D12CommandListType = Silk.NET.Direct3D12.CommandListType;

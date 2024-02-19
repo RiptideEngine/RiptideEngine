@@ -13,9 +13,14 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <None Remove="stb_rect_pack.dll" />
-        <Content Include="stb_rect_pack.dll">
+        <None Remove="harfbuzz.dll" />
+        <Content Include="harfbuzz.dll">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\RiptideEngine.Core\RiptideEngine.Core.csproj" />
     </ItemGroup>
 
 </Project>

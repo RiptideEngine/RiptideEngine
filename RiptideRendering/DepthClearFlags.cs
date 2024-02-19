@@ -1,5 +1,6 @@
 ﻿namespace RiptideRendering;
 
+[Flags]
 public enum DepthClearFlags {
     None = 0,
 

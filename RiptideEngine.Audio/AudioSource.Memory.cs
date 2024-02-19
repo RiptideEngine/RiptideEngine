@@ -9,6 +9,20 @@ partial class AudioSource {
             }
         }
 
+        public override float ElapsedSeconds {
+            get {
+                AudioEngine.AL!.GetSourceProperty(source._source, SourceFloat.SecOffset, out float sec);
+                return sec;
+            }
+        }
+        
+        public override uint ElapsedSamples {
+            get {
+                AudioEngine.AL!.GetSourceProperty(source._source, GetSourceInteger.SampleOffset, out int sample);
+                return (uint)sample;
+            }
+        }
+
         public override void Play() {
             Debug.Assert(source._clip is MemoryAudioClip);
 

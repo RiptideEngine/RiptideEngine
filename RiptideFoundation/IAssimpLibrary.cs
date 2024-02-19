@@ -7,12 +7,8 @@ public interface IAssimpLibrary : IRiptideService {
 }
 
 public sealed class AssimpLibraryService : IAssimpLibrary {
-    public Assimp Assimp { get; }
+    public Assimp Assimp { get; } = Assimp.GetApi();
     private bool _disposed;
-
-    public AssimpLibraryService() {
-        Assimp = Assimp.GetApi();
-    }
 
     private void Dispose(bool disposing) {
         if (!_disposed) {
@@ -27,5 +23,9 @@ public sealed class AssimpLibraryService : IAssimpLibrary {
     public void Dispose() {
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
+    }
+
+    ~AssimpLibraryService() {
+        Dispose(false);
     }
 }

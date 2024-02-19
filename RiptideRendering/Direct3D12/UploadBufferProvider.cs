@@ -13,8 +13,8 @@ internal sealed unsafe class UploadBufferProvider {
 
     private readonly List<nint> _preservedResources = [];
 
-    public void RequestResource(UploadBufferPool pool, ulong minimumSize, ulong fenceValue) {
-        pCurrentResource = pool.Request(MathUtils.AlignUpwardPow2<ulong>(minimumSize, D3D12.DefaultResourcePlacementAlignment), fenceValue);
+    public void RequestResource(UploadBufferPool pool, ulong minimumSize, D3D12CommandListType type, ulong fenceValue) {
+        pCurrentResource = pool.Request(MathUtils.AlignUpwardPow2<ulong>(minimumSize, D3D12.DefaultResourcePlacementAlignment), type, fenceValue);
         HResult hr = pCurrentResource->Map(0, new D3D12Range(0, 0), ref pMappedPtr);
         Marshal.ThrowExceptionForHR(hr);
 
@@ -35,7 +35,7 @@ internal sealed unsafe class UploadBufferProvider {
     }
     
     public void PreserveCurrentResource() {
-        Debug.Assert(pCurrentResource != null, "pCurrentResource != null");
+        if (pCurrentResource == null) return;
 
         _preservedResources.Add((nint)pCurrentResource);
         
@@ -44,9 +44,9 @@ internal sealed unsafe class UploadBufferProvider {
         pCurrentResource = null;
     }
     
-    public void ReturnResources(UploadBufferPool pool, ulong fenceValue) {
+    public void ReturnResources(UploadBufferPool pool, D3D12CommandListType type, ulong fenceValue) {
         foreach (var preserve in _preservedResources) {
-            pool.Return((ID3D12Resource*)preserve, fenceValue);
+            pool.Return((ID3D12Resource*)preserve, type, fenceValue);
         }
         _preservedResources.Clear();
     }

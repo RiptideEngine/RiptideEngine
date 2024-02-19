@@ -1,6 +1,6 @@
 ﻿namespace RiptideEngine.Audio;
 
-public sealed unsafe partial class AudioSource : RiptideRcObject {
+public sealed unsafe partial class AudioSource : AudioObject {
     private uint _source;
 
     private AudioClip? _clip;
@@ -27,29 +27,24 @@ public sealed unsafe partial class AudioSource : RiptideRcObject {
                 _impl!.Dispose(); _impl = null;
             }
 
-            _clip?.DecrementReference();
             _clip = value;
             
             if (_clip != null) {
                 _clip.IncrementReference();
 
-                if (_clip.IsStreaming) {
-                    Debug.Assert(_clip is StreamingAudioClip, "Foreign streaming audio clip detected.");
+                switch (_clip) {
+                    case StreamingAudioClip streamingClip: {
+                        (uint bitdepth, uint channels) = AudioUtils.GetBitdepthAndNumChannels(streamingClip.Format);
 
-                    StreamingAudioClip clip = Unsafe.As<StreamingAudioClip>(_clip);
-
-                    (uint bitdepth, uint channels) = AudioHelper.GetBitdepthAndNumChannels(clip.Format);
-
-                    if (clip.FrameCount * (bitdepth >> 3) * channels > AudioEngine.StreamingBufferCount * AudioEngine.StreamingBufferSize) {
-                        _impl = new StreamingImplementation(this);
-                    } else {
-                        _impl = new InsufficientStreamImplementation(this);
+                        if (streamingClip.SampleLength * channels * (bitdepth >> 3) > AudioEngine.StreamingBufferCount * AudioEngine.StreamingBufferSize) {
+                            _impl = new StreamingImplementation(this);
+                        } else {
+                            _impl = new InsufficientStreamImplementation(this);
+                        }
+                        break;
                     }
-                } else {
-                    _impl = new MemoryImplementation(this);
+                    case MemoryAudioClip: _impl = new MemoryImplementation(this); break;
                 }
-
-                Console.WriteLine(_impl.GetType().FullName);
             }
         }
     }
@@ -59,27 +54,21 @@ public sealed unsafe partial class AudioSource : RiptideRcObject {
             AudioEngine.AL!.GetSourceProperty(_source, SourceVector3.Position, out var pos);
             return pos;
         }
-        set {
-            AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Position, value);
-        }
+        set => AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Position, value);
     }
     public Vector3 Velocity {
         get {
             AudioEngine.AL!.GetSourceProperty(_source, SourceVector3.Velocity, out var vel);
             return vel;
         }
-        set {
-            AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Velocity, value);
-        }
+        set => AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Velocity, value);
     }
     public Vector3 Direction {
         get {
             AudioEngine.AL!.GetSourceProperty(_source, SourceVector3.Direction, out var dir);
             return dir;
         }
-        set {
-            AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Direction, value);
-        }
+        set => AudioEngine.AL!.SetSourceProperty(_source, SourceVector3.Direction, value);
     }
 
     public float Pitch {
@@ -87,18 +76,14 @@ public sealed unsafe partial class AudioSource : RiptideRcObject {
             AudioEngine.AL!.GetSourceProperty(_source, SourceFloat.Pitch, out var pitch);
             return pitch;
         }
-        set {
-            AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.Pitch, value);
-        }
+        set => AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.Pitch, value);
     }
     public float Volume {
         get {
             AudioEngine.AL!.GetSourceProperty(_source, SourceFloat.Gain, out var gain);
             return gain;
         }
-        set {
-            AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.Gain, value);
-        }
+        set => AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.Gain, value);
     }
 
     private SourceState SourceState {
@@ -109,6 +94,28 @@ public sealed unsafe partial class AudioSource : RiptideRcObject {
     }
 
     public bool IsPlaying => _impl?.IsPlaying ?? false;
+    public float ElapsedSeconds {
+        get => _impl?.ElapsedSeconds ?? 0;
+        set {
+            if (_clip == null) {
+                AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.SecOffset, float.Max(value, 0));
+            } else {
+                value = float.Clamp(value, 0, _clip.Length);
+                AudioEngine.AL!.SetSourceProperty(_source, SourceFloat.SecOffset, value);
+                _impl!.SetPlaybackPosition((uint)float.Floor(value * _clip.Frequency));
+            }
+        }
+    }
+
+    public uint ElapsedSamples {
+        get => _impl?.ElapsedSamples ?? 0;
+        set {
+            AudioEngine.AL!.SetSourceProperty(_source, SourceInteger.SampleOffset, value);
+            if (_clip != null) {
+                _impl!.SetPlaybackPosition(value);
+            }
+        }
+    }
 
     public AudioSource() {
         AudioEngine.EnsureInitialized();
@@ -152,10 +159,14 @@ public sealed unsafe partial class AudioSource : RiptideRcObject {
 
     private abstract class Implementation : IDisposable {
         public abstract bool IsPlaying { get; }
+        public abstract float ElapsedSeconds { get; }
+        public abstract uint ElapsedSamples { get; }
 
         public abstract void Play();
         public abstract void Pause();
         public abstract void Stop();
+
+        public virtual void SetPlaybackPosition(uint samplePosition) { }
 
         public virtual void Dispose() { }
     }

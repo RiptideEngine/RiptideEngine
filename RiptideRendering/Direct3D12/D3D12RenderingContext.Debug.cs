@@ -9,7 +9,7 @@ unsafe partial class D3D12RenderingContext {
     private ComPtr<ID3D12DebugDevice2> pDebugDevice;
     private uint _callbackCookie;
     
-    private MessageFunc _errorDelegate;
+    private MessageFunc _callback = null!;
 
     private void InitializeDebugLayer() {
         using ComPtr<ID3D12Debug> pDebug = default;
@@ -20,6 +20,10 @@ unsafe partial class D3D12RenderingContext {
             if (pDebug.QueryInterface(SilkMarshal.GuidPtrOf<ID3D12Debug1>(), (void**)&pDebug1) >= 0) {
                 pDebug1.SetEnableGPUBasedValidation(true);
             }
+            
+            Logger?.Log(LoggingType.Info, "Direct3D12: Debug layer enabled.");
+        } else {
+            Logger?.Log(LoggingType.Info, "Direct3D12: Debug layer disabled.");
         }
     }
     
@@ -41,15 +45,19 @@ unsafe partial class D3D12RenderingContext {
 
             pQueue.AddStorageFilterEntries(&filter);
 
-            _errorDelegate = ErrorCallback;
-            pQueue.RegisterMessageCallback(_errorDelegate, MessageCallbackFlags.FlagNone, null, ref _callbackCookie);
+            _callback = ErrorCallback;
+            pQueue.RegisterMessageCallback(_callback, MessageCallbackFlags.FlagNone, null, ref _callbackCookie);
+            
+            Logger?.Log(LoggingType.Info, "D3D12RenderingContext: Debug Layer initialized.");
         } else {
-            Logger?.Log(LoggingType.Error, "Failed to initialize debugger.");
+            Logger?.Log(LoggingType.Error, "D3D12RenderingContext: Failed to initialize debug layer.");
         }
     }
 
     private void ShutdownDebugLayer() {
         if (pQueue.Handle == null) return;
+
+        pDebugDevice.Handle->ReportLiveDeviceObjects(RldoFlags.Detail | RldoFlags.IgnoreInternal | RldoFlags.Summary);
 
         pQueue.UnregisterMessageCallback(_callbackCookie);
         

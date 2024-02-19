@@ -1,26 +1,13 @@
-﻿using Silk.NET.Direct3D12;
-
-namespace RiptideRendering.Direct3D12;
+﻿namespace RiptideRendering.Direct3D12;
 
 internal sealed class CommandQueues(D3D12RenderingContext context) : IDisposable {
     private bool _disposed;
 
-    public CommandQueue GraphicQueue { get; } = new(context, CommandListType.Direct);
-    public CommandQueue ComputeQueue { get; } = new(context, CommandListType.Compute);
-    public CommandQueue CopyQueue { get; } = new(context, CommandListType.Copy);
-
-    public CommandQueue GetQueue(ulong fenceValue) {
-        return (fenceValue >> 58) switch {
-            (uint)CommandListType.Compute => ComputeQueue,
-            (uint)CommandListType.Copy => CopyQueue,
-            _ => GraphicQueue,
-        };
-    }
+    // TODO: Support multi-queue and figure out how to managing resource on different destruction timeline.
+    public CommandQueue GraphicsQueue { get; } = new(context, D3D12CommandListType.Direct);
 
     public void IdleGpu() {
-        GraphicQueue.WaitForIdle();
-        ComputeQueue.WaitForIdle();
-        CopyQueue.WaitForIdle();
+        GraphicsQueue.WaitForIdle();
     }
 
     private void Dispose(bool disposing) {
@@ -28,9 +15,7 @@ internal sealed class CommandQueues(D3D12RenderingContext context) : IDisposable
         
         IdleGpu();
 
-        GraphicQueue.Dispose();
-        ComputeQueue.Dispose();
-        ComputeQueue.Dispose();
+        GraphicsQueue.Dispose();
         
         _disposed = true;
     }

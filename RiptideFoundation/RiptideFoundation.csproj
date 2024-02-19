@@ -14,14 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Assimp" Version="2.18.0" />
-    <PackageReference Include="Silk.NET.Input" Version="2.18.0" />
+    <PackageReference Include="RectpackSharp" Version="1.1.0" />
+    <PackageReference Include="Silk.NET.Assimp" Version="2.20.0" />
+    <PackageReference Include="Silk.NET.Input" Version="2.20.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.1" />
   </ItemGroup>
-
-	<ItemGroup>
-		<Reference Include="$(SolutionDir)Libraries\RPCSToolkit.dll" />
-		<Analyzer Include="$(SolutionDir)Libraries\RPCSToolkit.SourceGenerator.dll" />
-	</ItemGroup>
 
 	<ItemGroup>
 	  <Content Include="Resources\ShaderAPI\Camera.hlsl">
@@ -36,11 +33,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\Riptide.ShaderCompilation\Riptide.ShaderCompilation.csproj" />
+	  <ProjectReference Include="..\Riptide.ShaderCompilation\Riptide.ShaderCompilation.csproj"/>
 	  <ProjectReference Include="..\Riptide.TextEngine\Riptide.TextEngine.csproj" />
 	  <ProjectReference Include="..\RiptideDatabase\RiptideDatabase.csproj" />
 	  <ProjectReference Include="..\RiptideEngine.SceneGraph\RiptideEngine.SceneGraph.csproj" />
 	  <ProjectReference Include="..\RiptideRendering\RiptideRendering.csproj" />
+	  <ProjectReference Include="..\Riptide.SourceGeneration\Riptide.SourceGeneration\Riptide.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 </Project>

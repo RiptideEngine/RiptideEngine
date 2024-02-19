@@ -1,6 +1,5 @@
 ﻿using Silk.NET.Direct3D12;
 using Silk.NET.DXGI;
-using System.Collections.Concurrent;
 
 namespace RiptideRendering.Direct3D12;
 
@@ -9,17 +8,20 @@ internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
 
     private readonly D3D12Factory _factory;
     private readonly D3D12CapabilityChecker _capChecker;
+    private readonly D3D12Synchronizer _synchronizer;
+    
     private DXGI _dxgi;
 
     private ComPtr<ID3D12Device4> pDevice;
     private ComPtr<IDXGIFactory6> pDxgiFactory;
 
-    private readonly ConcurrentQueue<nint> _deferredDestroyResource = [];
+    private DeferredResourceDestructor _deferredDestructor;
 
     public override Factory Factory => _factory;
-    public override CapabilityChecker CapabilityChecker => _capChecker;
+    public override CapabilityChecker Capability => _capChecker;
+    public override Synchronizer Synchronizer => _synchronizer;
     
-    public override ILoggingService? Logger { get; set; }
+    public ILoggingService? Logger { get; private set; }
     
     public D3DFeatureLevel FeatureLevel { get; private set; }
 
@@ -33,13 +35,21 @@ internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
         D3D12 = D3D12.GetApi();
         _dxgi = DXGI.GetApi(options.OutputWindow);
 
+        Logger = options.Logger;
+        
         HResult hr;
         
         try {
-            pDxgiFactory = _dxgi.CreateDXGIFactory2<IDXGIFactory6>(0x01);
-            
-            InitializeDebugLayer();
-            
+            _dxgi.DeclareAdapterRemovalSupport();
+
+            if (options.OutputWindow.API.Flags.HasFlag(ContextFlags.Debug)) {
+                pDxgiFactory = _dxgi.CreateDXGIFactory2<IDXGIFactory6>(0x01);
+
+                InitializeDebugLayer();
+            } else {
+                pDxgiFactory = _dxgi.CreateDXGIFactory2<IDXGIFactory6>(0x00);
+            }
+
             // Device creation
             {
                 Span<D3DFeatureLevel> featureLevels = [
@@ -60,7 +70,7 @@ internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
                         pAdapter = null;
                         continue;
                     }
-
+                    
                     foreach (var createLevel in featureLevels) {
                         hr = D3D12.CreateDevice((IUnknown*)pAdapter, createLevel, SilkMarshal.GuidPtrOf<ID3D12Device>(), null);
 
@@ -69,7 +79,7 @@ internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
                             goto foundAdapter;
                         }
                     }
-
+                    
                     pAdapter->Release();
                     pAdapter = null;
                 }
@@ -94,59 +104,36 @@ internal sealed unsafe partial class D3D12RenderingContext : RenderingContext {
             Queues = new(this);
             
             InitializeResources();
-            InitializeDisplay(options.OutputWindow);
+            InitializeDisplay(options.OutputWindow, options.SwapchainFormat);
         } catch {
             Dispose();
             throw;
         }
-
+        
         _factory = new(this);
         _capChecker = new(this);
-    }
-
-    public override void WaitQueueIdle(QueueType type) {
-        switch (type) {
-            case QueueType.Graphics: Queues.GraphicQueue.WaitForIdle(); break;
-            case QueueType.Compute: Queues.ComputeQueue.WaitForIdle(); break;
-            case QueueType.Copy: Queues.CopyQueue.WaitForIdle(); break;
-        }
-    }
-
-    public override bool WaitFence(ulong fenceValue) {
-        var queue = Queues.GetQueue(fenceValue);
-        return queue.WaitForFence(fenceValue);
-    }
-
-    public override ulong ExecuteCommandList(GraphicsCommandList commandList) {
-        if (!commandList.IsClosed) throw new InvalidOperationException("Command List must be closed before executing.");
-        
-        Debug.Assert(commandList is D3D12GraphicsCommandList, "commandList is D3D12GraphicsCommandList");
-        
-        return Queues.GraphicQueue.ExecuteCommandList((ID3D12CommandList*)Unsafe.As<D3D12GraphicsCommandList>(commandList).CommandList);
-    }
-
-    public override ulong ExecuteCommandList(CopyCommandList commandList) {
-        if (!commandList.IsClosed) throw new InvalidOperationException("Command List must be closed before executing.");
-
-        Debug.Assert(commandList is D3D12CopyCommandList, "commandList is D3D12CopyCommandList");
-
-        ulong fence = Queues.CopyQueue.ExecuteCommandList((ID3D12CommandList*)Unsafe.As<D3D12CopyCommandList>(commandList).CommandList);
-        return fence;
+        _synchronizer = new(this);
+        _deferredDestructor = new();
     }
 
     public void DestroyDeferred(ID3D12Resource* resource) {
-        _deferredDestroyResource.Enqueue((nint)resource);
+        _deferredDestructor.Add(resource, Queues.GraphicsQueue.NextFenceValue - 1);
+    }
+
+    public override ulong ExecuteCommandList(CommandList commandList) {
+        if (!commandList.IsClosed) throw new InvalidOperationException("Command List must be closed before executing.");
+        
+        Debug.Assert(commandList is D3D12GraphicsCommandList, "commandList is D3D12GraphicsCommandList");
+        return Queues.GraphicsQueue.ExecuteCommandList((ID3D12CommandList*)Unsafe.As<D3D12GraphicsCommandList>(commandList).CommandList);
     }
 
     protected override void Dispose(bool disposing) {
         Queues?.Dispose();
-
-        foreach (var resource in _deferredDestroyResource) {
-            ((ID3D12Resource*)resource)->Release();
-        }
-
+        
         DisposeDisplay();
         DisposeResources();
+        
+        _deferredDestructor.Dispose();
         
         ShutdownDebugLayer();
         

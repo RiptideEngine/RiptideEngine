@@ -1,10 +1,10 @@
 ﻿namespace Riptide.LowLevel.TextEngine.FreeType;
 
-public unsafe readonly struct FT_FaceRec {
+public readonly unsafe struct FT_FaceRec {
     public readonly int NumFaces;
     public readonly int FaceIndex;
     
-    public readonly int FaceFlags;
+    public readonly FT_Face_Flag FaceFlags;
     public readonly int StyleFlags;
     
     public readonly int NumGlyphs;
@@ -16,7 +16,7 @@ public unsafe readonly struct FT_FaceRec {
     public readonly FT_Bitmap_Size* AvailableSizes;
 
     public readonly int NumCharmaps;
-    public readonly FT_CharMap* Charmaps;
+    public readonly FT_CharMapRec** Charmaps;
 
     public readonly FT_Generic Generic;
 
@@ -33,9 +33,9 @@ public unsafe readonly struct FT_FaceRec {
     public readonly short UnderlinePosition;
     public readonly short UnderlineThickness;
 
-    public readonly FT_GlyphSlot Glyph;
-    public readonly FT_Size Size;
-    public readonly FT_CharMap Charmap;
+    public readonly FT_GlyphSlotRec* Glyph;
+    public readonly FT_SizeRec* Size;
+    public readonly FT_CharMapRec* Charmap;
 
     private readonly FT_Driver _driver;
     private readonly FT_Memory _memory;

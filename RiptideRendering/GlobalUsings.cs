@@ -1,5 +1,5 @@
 ﻿global using RiptideEngine.Core;
-global using RPCSToolkit.Attributes;
+global using RiptideEngine.Core.Attributes;
 global using Silk.NET.Core.Attributes;
 global using Silk.NET.Core.Native;
 global using Silk.NET.Windowing;

@@ -3,22 +3,22 @@
 namespace RiptideRendering.Direct3D12;
 
 unsafe partial class D3D12RenderingContext {
-    private CpuDescriptorAllocator _cpuDescriptorAllocator;
+    private CpuDescriptorAllocator _cpuDescriptorAllocator = null!;
     
-    public UploadBufferPool UploadBufferPool { get; private set; }
-    public StagingDescriptorHeapPool StagingResourceHeapPool { get; private set; }
+    public UploadBufferPool UploadBufferPool { get; private set; } = null!;
+    public StagingDescriptorHeapPool StagingResourceHeapPool { get; private set; } = null!;
     
-    public GpuDescriptorHeapPool GraphicsResourceDescHeapPool { get; private set; }
+    public GpuDescriptorHeapPool ResourceDescriptorHeapPool { get; private set; } = null!;
 
     private void InitializeResources() {
         _cpuDescriptorAllocator = new(this);
         UploadBufferPool = new(this);
         StagingResourceHeapPool = new(this, DescriptorHeapType.CbvSrvUav);
-        GraphicsResourceDescHeapPool = new(this, DescriptorHeapType.CbvSrvUav, 512);
+        ResourceDescriptorHeapPool = new(this, DescriptorHeapType.CbvSrvUav, 4096);
     }
 
     private void DisposeResources() {
-        GraphicsResourceDescHeapPool?.Dispose();
+        ResourceDescriptorHeapPool?.Dispose();
         StagingResourceHeapPool?.Dispose();
         UploadBufferPool?.Dispose();
         _cpuDescriptorAllocator?.Dispose();

@@ -1,5 +1,5 @@
-﻿namespace RiptideEngine.Core; 
+﻿namespace RiptideEngine.Core;
 
-public abstract class RiptideObject {
-    public virtual string? Name { get; set; }
+public abstract class RiptideObject : ReferenceCounted {
+    public abstract string? Name { get; set; }
 }

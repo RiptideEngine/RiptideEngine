@@ -3,6 +3,8 @@ using Silk.NET.DXGI;
 
 namespace RiptideRendering.Direct3D12;
 
+// TODO: Small Texture optimization.
+
 internal sealed unsafe class D3D12GpuTexture : GpuTexture, IResourceStateTracking {
     public const string UnnamedResource = $"<Unnamed {nameof(D3D12GpuTexture)}>.{nameof(NativeResourceHandle)}";
 
@@ -63,36 +65,37 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture, IResourceStateTrackin
                 Count = 1,
                 Quality = 0,
             },
-            Flags = (desc.Flags.HasFlag(TextureFlags.RenderTarget) ? ResourceFlags.AllowRenderTarget : 0) | (desc.Flags.HasFlag(TextureFlags.DepthStencil) ? ResourceFlags.AllowDepthStencil : 0),
+            Flags = (desc.Flags.HasFlag(TextureFlags.RenderTarget) ? ResourceFlags.AllowRenderTarget : 0) | (desc.Flags.HasFlag(TextureFlags.DepthStencil) ? ResourceFlags.AllowDepthStencil : 0) | (desc.Flags.HasFlag(TextureFlags.UnorderedAccess) ? ResourceFlags.AllowUnorderedAccess : 0),
         };
 
-        scoped Span<ClearValue> clear = null;
+        using ComPtr<ID3D12Resource> pOutput = default;
+        int hr;
+        
         if (rdesc.Flags.HasFlag(ResourceFlags.AllowDepthStencil)) {
-            clear = stackalloc ClearValue[1] {
-                new() {
-                    Format = dxgiFormat,
-                    DepthStencil = new() {
-                        Depth = 1,
-                        Stencil = 0,
-                    },
+            convert = Converting.TryConvertToDepthClearFormat(desc.Format, out var clearFormat);
+            Debug.Assert(convert, $"Failed to convert '{desc.Format}' to correspond DXGI_FORMAT.");
+            
+            ClearValue clear = new() {
+                Format = clearFormat,
+                DepthStencil = new() {
+                    Depth = 1,
+                    Stencil = 0,
                 },
             };
+            
+            hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, clear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
         } else if (rdesc.Flags.HasFlag(ResourceFlags.AllowRenderTarget)) {
-            clear = stackalloc ClearValue[1] {
-                new() {
-                    Format = dxgiFormat,
-                },
+            ClearValue clear = new() {
+                Format = dxgiFormat,
             };
-            fixed (float* pColor = clear[0].Anonymous.Color) {
-                Unsafe.Write(pColor, Vector4.UnitW);
-            }
+            Unsafe.Write(clear.Anonymous.Color, Vector4.UnitW);
+            
+            hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, &clear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
+        } else {
+            hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
         }
 
-        using ComPtr<ID3D12Resource> pOutput = default;
-        fixed (ClearValue* pClear = clear) {
-            int hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.Common, pClear, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)pOutput.GetAddressOf());
-            Marshal.ThrowExceptionForHR(hr);
-        }
+        Marshal.ThrowExceptionForHR(hr);
         
         Helper.SetName(pOutput.Handle, UnnamedResource);
 
@@ -118,7 +121,7 @@ internal sealed unsafe class D3D12GpuTexture : GpuTexture, IResourceStateTrackin
 
         _refcount = 1;
     }
-
+    
     protected override void Dispose() {
         _context.DestroyDeferred((ID3D12Resource*)NativeResourceHandle);
         NativeResourceHandle = nint.Zero;

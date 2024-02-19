@@ -3,9 +3,9 @@
 namespace RiptideRendering.Direct3D12;
 
 internal static unsafe class CommandListOperations {
-    public static void AddResourceTransitionBarrier(GpuResource resource, ResourceTranslateStates destinationStates, List<ResourceBarrier> barriers) {
-        Debug.Assert(resource is IResourceStateTracking, "resource is IResourceStateTracking");
-
+    public delegate UploadBufferProvider.AllocatedRegion UploadRegionAllocator(ulong size, ulong alignment);
+    
+    public static void AddResourceTransitionBarrier(GpuResource resource, uint subresource, ResourceTranslateStates destinationStates, List<ResourceBarrier> barriers) {
         IResourceStateTracking stateTracking = Unsafe.As<IResourceStateTracking>(resource);
         
         ResourceStates newStates = Converting.Convert(destinationStates);
@@ -15,10 +15,11 @@ internal static unsafe class CommandListOperations {
                 Type = ResourceBarrierType.Transition,
                 Transition = new() {
                     PResource = (ID3D12Resource*)resource.NativeResourceHandle,
-                    Subresource = 0xFFFFFFFF,
+                    Subresource = subresource,
                     StateBefore = stateTracking.UsageState,
                     StateAfter = newStates,
                 },
+                Flags = ResourceBarrierFlags.None,
             };
 
             if (newStates == stateTracking.TransitioningState) {

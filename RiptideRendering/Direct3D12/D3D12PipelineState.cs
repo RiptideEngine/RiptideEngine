@@ -33,7 +33,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
         }
     }
 
-    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature pipelineResource, in PipelineStateDescription description) {
+    public D3D12PipelineState(D3D12RenderingContext context, D3D12GraphicalShader shader, D3D12ResourceSignature signature, in PipelineStateDescription description) {
         Unsafe.SkipInit(out GraphicsPipelineStateDesc.RTVFormatsBuffer rtFormats);
 
         fixed (byte* pVSBytecode = shader.VSBytecode) {
@@ -139,7 +139,7 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                                 BytecodeLength = (nuint)shader.PSBytecode.Length,
                             },
 
-                            PRootSignature = pipelineResource.RootSignature,
+                            PRootSignature = signature.RootSignature,
                             SampleMask = uint.MaxValue,
                             SampleDesc = new() {
                                 Count = 1,
@@ -155,17 +155,10 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
                             NodeMask = 1,
                         };
 
-                        using ComPtr<ID3D12PipelineState> pOutput = default;
-                        int hr = context.Device->CreateGraphicsPipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pOutput.GetAddressOf());
+                        int hr = context.Device->CreateGraphicsPipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pPipelineState.GetAddressOf());
                         Marshal.ThrowExceptionForHR(hr);
 
-                        Helper.SetName(pOutput.Handle, UnnamedPipelineState);
-                        pPipelineState.Handle = pOutput.Detach();
-
-                        Shader = shader;
-                        Shader.IncrementReference();
-
-                        Type = PipelineStateType.Graphical;
+                        Helper.SetName(pPipelineState.Handle, UnnamedPipelineState);
                     }
                 }
             }
@@ -192,8 +185,23 @@ internal sealed unsafe class D3D12PipelineState : PipelineState {
         }
     }
 
+    public D3D12PipelineState(D3D12RenderingContext context, D3D12ComputeShader shader, D3D12ResourceSignature signature) {
+        fixed (byte* pBytecode = shader.Bytecode) {
+            ComputePipelineStateDesc desc = new() {
+                CS = new() { PShaderBytecode = pBytecode, BytecodeLength = (nuint)shader.Bytecode.Length },
+                PRootSignature = signature.RootSignature,
+            };
+
+            int hr = context.Device->CreateComputePipelineState(&desc, SilkMarshal.GuidPtrOf<ID3D12PipelineState>(), (void**)pPipelineState.GetAddressOf());
+            Marshal.ThrowExceptionForHR(hr);
+
+            Helper.SetName(pPipelineState.Handle, UnnamedPipelineState);
+
+            _refcount = 1;
+        }
+    }
+
     protected override void Dispose() {
-        Shader.DecrementReference(); Shader = null!;
         pPipelineState.Dispose(); pPipelineState = default;
     }
 }

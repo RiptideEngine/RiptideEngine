@@ -1,7 +1,6 @@
 ﻿global using RiptideEngine.Core;
 global using RiptideEngine.SceneGraph;
 global using RiptideRendering;
-global using RPCSToolkit.Attributes;
 global using System.Diagnostics;
 global using System.Diagnostics.CodeAnalysis;
 global using System.Numerics;

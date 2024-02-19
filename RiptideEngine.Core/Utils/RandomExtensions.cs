@@ -13,11 +13,11 @@ public static class RandomExtensions {
         (float sin2piV, float cos2piV) = float.SinCosPi(2 * v);
         (float sin2piW, float cos2piW) = float.SinCosPi(2 * w);
 
-        return new Quaternion(sqrtInvU * sin2piV, sqrtInvU * cos2piV, sqrtU * sin2piW, sqrtU * cos2piW);
+        return new(sqrtInvU * sin2piV, sqrtInvU * cos2piV, sqrtU * sin2piW, sqrtU * cos2piW);
     }
 
     public static Quaternion NextQuaternionNonUniform(this Random random) {
-        return Quaternion.Normalize(new Quaternion(random.NextSingle() - 0.5f, random.NextSingle() - 0.5f, random.NextSingle() - 0.5f, random.NextSingle() - 0.5f) * 2);
+        return Quaternion.CreateFromYawPitchRoll(random.NextSingle() * float.Tau, random.NextSingle() * float.Tau, random.NextSingle() * float.Tau);
     }
 
     public static Vector2 NextVector2(this Random random) {

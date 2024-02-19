@@ -59,6 +59,23 @@ unsafe partial struct Vector2Int {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector2Int Multiply(Vector2Int left, int right) => Multiply(left, new Vector2Int(right));
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector2 Multiply(Vector2Int left, float right) {
+        if (Sse2.IsSupported) {
+            Vector128<float> result = Sse.Multiply(Sse2.ConvertToVector128Single(Sse2.LoadVector128(&left.X)), Vector128.Create(right));
+            return Unsafe.As<Vector128<float>, Vector2>(ref result);
+        }
+        if (AdvSimd.IsSupported) {
+            Vector64<float> result = AdvSimd.Multiply(AdvSimd.ConvertToSingle(AdvSimd.LoadVector64(&left.X)), Vector64.Create(right));
+            return Unsafe.As<Vector64<float>, Vector2>(ref result);
+        }
+        
+        return new(left.X * right, left.Y * right);
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector2 Multiply(float left, Vector2Int right) => Multiply(right, left);
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector2Int Multiply(int left, Vector2Int right) => Multiply(right, left);
 
@@ -191,7 +208,7 @@ unsafe partial struct Vector2Int {
             return Unsafe.As<Vector64<int>, Vector2Int>(ref result);
         }
 
-        return new(int.Min(int.Max(value.X, min.X), max.X), int.Min(int.Max(value.Y, min.Y), max.Y));
+        return new(int.Clamp(value.X, min.X, max.Y), int.Clamp(value.Y, min.Y, max.Y));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

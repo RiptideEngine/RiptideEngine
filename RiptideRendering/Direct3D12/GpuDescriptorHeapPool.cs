@@ -37,12 +37,12 @@ internal sealed unsafe class GpuDescriptorHeapPool(D3D12RenderingContext context
 
             int hr = context.Device->CreateDescriptorHeap(&desc, SilkMarshal.GuidPtrOf<ID3D12DescriptorHeap>(), (void**)&pHeap);
             Marshal.ThrowExceptionForHR(hr);
-            
-            Helper.SetName(pHeap, $"GpuDescriptorHeap {_pool.Count}");
 
-            _pool.Add((nint)pHeap);
+            var name = $"GpuDescriptorHeap {_pool.Count}";
+            Helper.SetName(pHeap, name);
+            context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(GpuDescriptorHeapPool)}: Descriptor heap allocated (NumDescriptors = {desc.NumDescriptors}, Address = 0x{(nint)pHeap:X}, CPU Handle = 0x{(nint)pHeap->GetCPUDescriptorHandleForHeapStart().Ptr:X}, GPU Handle 0x{(nint)pHeap->GetGPUDescriptorHandleForHeapStart().Ptr:X}, Name = '{name}').");
             
-            context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(GpuDescriptorHeapPool)}: Descriptor heap allocated (NumDescriptors = {desc.NumDescriptors}, Address = 0x{(nint)pHeap:X}, CPU Handle = 0x{(nint)pHeap->GetCPUDescriptorHandleForHeapStart().Ptr:X}).");
+            _pool.Add((nint)pHeap);
 
             return pHeap;
         }

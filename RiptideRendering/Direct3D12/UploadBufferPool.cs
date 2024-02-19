@@ -5,16 +5,31 @@ namespace RiptideRendering.Direct3D12;
 internal sealed unsafe class UploadBufferPool(D3D12RenderingContext context) : IDisposable {
     private readonly List<nint> _pool = [];
 
-    private readonly Queue<RetiredBuffer> _retiredBuffers = [];
+    private readonly Queue<RetiredBuffer> _retiredGraphicsBuffers = [];
+    private readonly Queue<RetiredBuffer> _retiredCopyBuffers = [];
+    
     private readonly List<AvailableBuffer> _availableBuffers = [];
     
     private readonly object _lock = new();
 
-    public ID3D12Resource* Request(ulong minimumSize, ulong fenceValue) {
+    public ID3D12Resource* Request(ulong minimumSize, D3D12CommandListType queueType, ulong fenceValue) {
         lock (_lock) {
-            while (_retiredBuffers.TryPeek(out var peek) && fenceValue >= peek.CompleteFenceValue) {
-                _availableBuffers.Add(new(peek.Resource));
-                _retiredBuffers.Dequeue();
+            switch (queueType) {
+                case D3D12CommandListType.Direct:
+                    while (_retiredGraphicsBuffers.TryPeek(out var peek) && fenceValue >= peek.CompleteFenceValue) {
+                        _availableBuffers.Add(new(peek.Resource));
+                        _retiredGraphicsBuffers.Dequeue();
+                    }
+                    break;
+                
+                case D3D12CommandListType.Copy:
+                    while (_retiredCopyBuffers.TryPeek(out var peek) && fenceValue >= peek.CompleteFenceValue) {
+                        _availableBuffers.Add(new(peek.Resource));
+                        _retiredCopyBuffers.Dequeue();
+                    }
+                    break;
+                
+                case D3D12CommandListType.Compute: throw new NotImplementedException("Unimplemented for case 'Compute'.");
             }
             
             for (int i = 0; i < _availableBuffers.Count; i++) {
@@ -49,15 +64,27 @@ internal sealed unsafe class UploadBufferPool(D3D12RenderingContext context) : I
             HResult hr = context.Device->CreateCommittedResource(&hprops, HeapFlags.None, &rdesc, ResourceStates.GenericRead, null, SilkMarshal.GuidPtrOf<ID3D12Resource>(), (void**)&pOutput);
             Marshal.ThrowExceptionForHR(hr);
             
+            context.Logger?.Log(LoggingType.Info, $"Direct3D12 - {nameof(UploadBufferPool)}: Allocated {minimumSize} bytes buffer (Address = 0x{(nint)pOutput:X}).");
+            
             _pool.Add((nint)pOutput);
 
             return pOutput;
         }
     }
 
-    public void Return(ID3D12Resource* pResource, ulong fenceValue) {
+    public void Return(ID3D12Resource* pResource, D3D12CommandListType queueType, ulong fenceValue) {
         lock (_lock) {
-            _retiredBuffers.Enqueue(new(pResource, fenceValue));
+            switch (queueType) {
+                case D3D12CommandListType.Direct:
+                    _retiredGraphicsBuffers.Enqueue(new(pResource, fenceValue));
+                    break;
+                
+                case D3D12CommandListType.Copy:
+                    _retiredCopyBuffers.Enqueue(new(pResource, fenceValue));
+                    break;
+                
+                case D3D12CommandListType.Compute: throw new NotImplementedException("Unimplemented case 'Compute'.");
+            }
         }
     }
 
@@ -68,19 +95,14 @@ internal sealed unsafe class UploadBufferPool(D3D12RenderingContext context) : I
             }
             
             _pool.Clear();
-            _retiredBuffers.Clear();
+            _retiredGraphicsBuffers.Clear();
             _availableBuffers.Clear();
         }
     }
 
-    private readonly struct AvailableBuffer {
-        public readonly ID3D12Resource* Resource;
-        public readonly ulong Width;
-
-        public AvailableBuffer(ID3D12Resource* pResource) {
-            Resource = pResource;
-            Width = pResource->GetDesc().Width;
-        }
+    private readonly struct AvailableBuffer(ID3D12Resource* pResource) {
+        public readonly ID3D12Resource* Resource = pResource;
+        public readonly ulong Width = pResource->GetDesc().Width;
     }
 
     private readonly struct RetiredBuffer(ID3D12Resource* pResource, ulong completeFenceValue) {

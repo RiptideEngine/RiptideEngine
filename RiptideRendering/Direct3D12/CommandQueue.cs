@@ -3,6 +3,8 @@
 namespace RiptideRendering.Direct3D12;
 
 internal sealed unsafe class CommandQueue : IDisposable {
+    internal const int QueueTypeBitshift = 60;
+    
     private ComPtr<ID3D12CommandQueue> pQueue;
 
     private ComPtr<ID3D12Fence> pFence;
@@ -17,14 +19,17 @@ internal sealed unsafe class CommandQueue : IDisposable {
     public ulong LastCompletedFenceValue => _lastCompletedFenceValue;
     public ulong NextFenceValue { get; private set; }
 
-    public CommandQueue(D3D12RenderingContext context, CommandListType type) {
+    public CommandQueue(D3D12RenderingContext context, D3D12CommandListType type) {
         pQueue = context.Device->CreateCommandQueue<ID3D12CommandQueue>(new CommandQueueDesc {
             Type = type,
         });
         pFence = context.Device->CreateFence<ID3D12Fence>(0, FenceFlags.None);
-        pFence.Signal((ulong)type << 58);
+        pFence.Signal((ulong)type << QueueTypeBitshift);
+        
+        Helper.SetName(pQueue.Handle, $"CommandQueue {type}");
+        Helper.SetName(pFence.Handle, $"CommandQueue {type}.Fence");
 
-        _lastCompletedFenceValue = (ulong)type << 58;
+        _lastCompletedFenceValue = (ulong)type << QueueTypeBitshift;
         NextFenceValue = _lastCompletedFenceValue + 1;
         
         _eventHandle = SilkMarshal.CreateWindowsEvent(null, false, false, null);
@@ -61,12 +66,9 @@ internal sealed unsafe class CommandQueue : IDisposable {
     }
     
     public bool WaitForFence(ulong fenceValue) {
-        if (IsFenceComplete(fenceValue))
-            return false;
+        if (IsFenceComplete(fenceValue)) return false;
 
         lock (_eventLock) {
-            Console.WriteLine("Waiting fence: " + fenceValue);
-            
             pFence.SetEventOnCompletion(fenceValue, (void*)_eventHandle);
             SilkMarshal.WaitWindowsObjects(_eventHandle);
             _lastCompletedFenceValue = fenceValue;
@@ -77,7 +79,7 @@ internal sealed unsafe class CommandQueue : IDisposable {
 
     public void WaitForIdle() => WaitForFence(IncrementFence());
     
-    public void StallForFence(CommandQueue other) {
+    public void StallForProducer(CommandQueue other) {
         pQueue.Wait(other.pFence, other.NextFenceValue - 1);
     }
 

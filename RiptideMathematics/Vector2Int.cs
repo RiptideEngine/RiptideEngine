@@ -1,10 +1,28 @@
 ﻿namespace RiptideMathematics;
 
-public partial struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, IFormattable {
+public partial struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, 
+                                                 IFormattable, 
+                                                 IAdditionOperators<Vector2Int, Vector2Int, Vector2Int>, 
+                                                 ISubtractionOperators<Vector2Int, Vector2Int, Vector2Int>,
+                                                 IUnaryNegationOperators<Vector2Int, Vector2Int>,
+                                                 IMultiplyOperators<Vector2Int, Vector2Int, Vector2Int>, 
+                                                 IMultiplyOperators<Vector2Int, int, Vector2Int>,
+                                                 IMultiplyOperators<Vector2Int, float, Vector2>,
+                                                 IDivisionOperators<Vector2Int, Vector2Int, Vector2Int>, 
+                                                 IDivisionOperators<Vector2Int, int, Vector2Int>, 
+                                                 IDivisionOperators<Vector2Int, float, Vector2>, 
+                                                 IBitwiseOperators<Vector2Int, Vector2Int, Vector2Int>,
+                                                 IEqualityOperators<Vector2Int, Vector2Int, bool>,
+                                                 IAdditiveIdentity<Vector2Int, Vector2Int>,
+                                                 IMultiplicativeIdentity<Vector2Int, Vector2Int>
+{
     public static Vector2Int Zero => default;
     public static Vector2Int UnitX => new(1, 0);
     public static Vector2Int UnitY => new(0, 1);
     public static Vector2Int One => new(1, 1);
+
+    public static Vector2Int AdditiveIdentity => Zero;
+    public static Vector2Int MultiplicativeIdentity => One;
 
     public int X = x, Y = y;
 
@@ -29,6 +47,8 @@ public partial struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, IFormat
     public static implicit operator Vector2(Vector2Int vector) => new(vector.X, vector.Y);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static explicit operator Vector2Int(Vector2 vector) => new((int)vector.X, (int)vector.Y);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static explicit operator Vector2Int(Vector2UInt vector) => new((int)vector.X, (int)vector.Y);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector2Int operator +(Vector2Int left, Vector2Int right) => Add(left, right);
@@ -40,6 +60,8 @@ public partial struct Vector2Int(int x, int y) : IEquatable<Vector2Int>, IFormat
     public static Vector2Int operator *(Vector2Int left, Vector2Int right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector2Int operator *(Vector2Int left, int right) => Multiply(left, right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector2 operator *(Vector2Int left, float right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector2Int operator *(int left, Vector2Int right) => Multiply(left, right);
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

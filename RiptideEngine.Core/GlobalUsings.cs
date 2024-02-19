@@ -5,3 +5,5 @@ global using System.Runtime.CompilerServices;
 global using System.Runtime.Intrinsics;
 global using System.Runtime.Intrinsics.Arm;
 global using System.Runtime.Intrinsics.X86;
+global using System.Diagnostics.Contracts;
+global using System.Collections;

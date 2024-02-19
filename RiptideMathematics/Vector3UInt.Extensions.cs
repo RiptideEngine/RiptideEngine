@@ -58,7 +58,18 @@ unsafe partial struct Vector3UInt {
     public static Vector3UInt Multiply(Vector3UInt left, uint right) => Multiply(left, new Vector3UInt(right));
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector3UInt Multiply(uint left, Vector3UInt right) => Multiply(right, left);
-
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3 Multiply(Vector3UInt left, float right) {
+        if (AdvSimd.IsSupported) {
+            Vector128<float> result = AdvSimd.Multiply(AdvSimd.ConvertToSingle(AdvSimd.LoadVector128(&left.X)), Vector128.Create(right));
+            return Unsafe.As<Vector128<float>, Vector3>(ref result);
+        }
+        
+        return new(left.X * right, left.Y * right, left.Z * right);
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Vector3 Multiply(float left, Vector3UInt right) => Multiply(right, left);
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Vector3UInt Divide(Vector3UInt left, Vector3UInt right) {
         return new(left.X / right.X, left.Y / right.Y, left.Z / right.Z);
