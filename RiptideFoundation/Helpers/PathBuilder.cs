@@ -38,6 +38,10 @@ public partial struct PathBuilder {
 
     [UnscopedRef]
     public ref PathBuilder Begin() {
+        if (_operations.Count != 0) {
+            PathBuilding.Build(_builder, CollectionsMarshal.AsSpan(_operations), 1, Color32.White, _writer, _indexFormat);
+        }
+        
         _operations.Clear();
         _position = Vector2.Zero;
 
@@ -77,7 +81,8 @@ public partial struct PathBuilder {
         _operations.Add(new() {
             Type = PathOperationType.LineTo,
             Line = new() {
-            }
+                Destination = _position with { X = x },
+            },
         });
 
         _position.X = x;
@@ -86,13 +91,14 @@ public partial struct PathBuilder {
     }
     
     [UnscopedRef]
-    public ref PathBuilder VerticalLineTo(float x) {
+    public ref PathBuilder VerticalLineTo(float y) {
         _operations.Add(new() {
-            Type = PathOperationType.VerticalLine,
-            VerticalLine = new() {
-                Destination = x,
+            Type = PathOperationType.LineTo,
+            Line = new() {
+                Destination = _position with { Y = y },
             },
         });
+        _position.Y = y;
 
         return ref this;
     }
@@ -103,6 +109,7 @@ public partial struct PathBuilder {
             Type = PathOperationType.QuadraticBezier,
             QuadraticBezier = new(control, destination),
         });
+        _position = destination;
 
         return ref this;
     }
@@ -113,6 +120,7 @@ public partial struct PathBuilder {
             Type = PathOperationType.CubicBezier,
             CubicBezier = new(startControl, endControl, destination),
         });
+        _position = destination;
 
         return ref this;
     }
