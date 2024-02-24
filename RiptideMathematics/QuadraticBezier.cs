@@ -6,14 +6,14 @@ namespace RiptideMathematics;
 
 public static class QuadraticBezier {
     public static Vector2 GetPosition(Vector2 start, Vector2 control, Vector2 end, float t) {
-        var weight = float.Clamp(t, 0, 1);
-        var rweight = 1 - weight;
-
-        return rweight * rweight * start + 2 * rweight * weight * control + weight * weight * end;
+        return Vector2.Lerp(Vector2.Lerp(start, control, t), Vector2.Lerp(control, end, t), t);
     }
     
     public static Vector2 GetVelocity(Vector2 start, Vector2 control, Vector2 end, float t) {
-        var weight = float.Clamp(t, 0, 1);
-        return 2 * (1 - weight) * (control - start) + 2 * weight * (end - control);
+        return 2 * ((1 - t) * (control - start) + t * (end - control));
+    }
+    
+    public static Vector2 GetAcceleration(Vector2 start, Vector2 control, Vector2 end, float t) {
+        return 2 * (end - 2 * control + start);
     }
 }

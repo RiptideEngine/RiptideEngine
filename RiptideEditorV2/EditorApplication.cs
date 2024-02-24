@@ -20,6 +20,8 @@ public static unsafe partial class EditorApplication {
 
     public static InterfaceDocument _ui = null!;
 
+    public static Mesh _pathMesh = null!;
+
     internal static void Initialize() {
         CreateWindow();
     }
@@ -66,12 +68,20 @@ public static unsafe partial class EditorApplication {
                     break;
             }
         };
+
+        // _services.GetRequiredService<IInputService>().KeyDown += (key) => {
+        //     if (key == Key.Space) {
+        //         if (_ui.Root.Search<RiptideEditorV2.UI.Button>("Button") is { } button) {
+        //             button.InvalidateGraphics();
+        //         }
+        //     }
+        // };
     }
 
     private static void Update(double dt) {
-        // if (_ui.Root.Search<RiptideEditorV2.UI.Button>("Button") is { } button) {
-        //     button.BorderRadii = new(float.FusedMultiplyAdd(float.Sin((float)_window.Time * 4), 0.5f, 0.5f) * 200);
-        // }
+        if (_ui.Root.Search<RiptideEditorV2.UI.Button>("Button") is { } button) {
+            button.InvalidateGraphics();
+        }
         
         _ui.Update();
     }

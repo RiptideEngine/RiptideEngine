@@ -1,6 +1,4 @@
-﻿using RiptideFoundation.Rendering;
-
-namespace RiptideEditorV2.UI;
+﻿namespace RiptideEditorV2.UI;
 
 internal sealed unsafe class DefaultUIBatcher : UIBatcher {
     public override void BuildBatch(MaterialPipeline pipeline, InterfaceElement root, Matrix3x2 transformation, in BatchingOperation op) {

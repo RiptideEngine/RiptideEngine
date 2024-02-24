@@ -1,6 +1,6 @@
 ﻿namespace RiptideFoundation;
 
-public enum JointType {
+public enum PathJointType {
     Miter = 0,
     Bevel = 1,
     Round = 2,

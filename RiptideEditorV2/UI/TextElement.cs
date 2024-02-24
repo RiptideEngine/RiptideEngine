@@ -38,7 +38,7 @@ public sealed unsafe class TextElement : VisualElement {
     public float Size {
         get => _size;
         set {
-            if (MathUtils.Approximate(_size, value, 0.01f)) return;
+            if (MathUtils.IsApproximate(_size, value, 0.01f)) return;
 
             _size = value;
             InvalidateGraphics();

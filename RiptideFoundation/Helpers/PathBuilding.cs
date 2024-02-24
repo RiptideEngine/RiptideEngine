@@ -1,50 +1,68 @@
 ﻿namespace RiptideFoundation.Helpers;
 
-public partial struct PathBuilder {
-    private enum OperationType {
-        SetColor,
-        SetThickness,
-        MoveTo,
-        LineTo,
-        HorizontalLine,
-        VerticalLine,
-        QuadraticBezier,
-        CubicBezier,
-        Close,
-    }
-    
-    [StructLayout(LayoutKind.Explicit)]
-    private readonly struct PathOperation {
-        [field: FieldOffset(0)] public required OperationType Type { get; init; }
-        [field: FieldOffset(4)] public MoveOperation Move { get; init; }
-        [field: FieldOffset(4)] public LineOperation Line { get; init; }
-        [field: FieldOffset(4)] public AxisAlignedLineOperation HorizontalLine { get; init; }
-        [field: FieldOffset(4)] public AxisAlignedLineOperation VerticalLine { get; init; }
-        [field: FieldOffset(4)] public Color32 Color { get; init; }
-        [field: FieldOffset(4)] public float Thickness { get; init; }
-        [field: FieldOffset(4)] public QuadraticBezierOperation QuadraticBezier { get; init; }
-        [field: FieldOffset(4)] public CubicBezierOperation CubicBezier { get; init; }
-        [field: FieldOffset(4)] public CloseOperation Close { get; init; }
-
-        public struct MoveOperation {
-            public required Vector2 Destination;
-        }
-
-        public struct LineOperation {
-            public required Vector2 Destination;
-        }
-
-        public struct AxisAlignedLineOperation {
-            public required float Destination;
-        }
-
-        public readonly record struct QuadraticBezierOperation(Vector2 Control, Vector2 Destination);
-        public readonly record struct CubicBezierOperation(Vector2 StartControl, Vector2 EndControl, Vector2 Destination);
+public static partial class PathBuilding {
+    internal static void Build(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, float thickness, Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+        Vector2 penPosition = Vector2.Zero;
+        Optional<int> subpathStartIndex = Optional<int>.Null;
+        int startIndex;
         
-        public struct CloseOperation {
-            public required bool Loop;
+        for (int i = 0; i < operations.Length; i++) {
+            ref readonly var operation = ref operations[i];
+
+            switch (operation.Type) {
+                case PathOperationType.SetColor:
+                    if (subpathStartIndex.HasValue) continue;
+
+                    color = operation.Color;
+                    break;
+                
+                case PathOperationType.SetThickness:
+                    if (subpathStartIndex.HasValue) continue;
+
+                    thickness = operation.Thickness;
+                    break;
+                
+                case PathOperationType.LineTo or PathOperationType.QuadraticBezier or PathOperationType.CubicBezier:
+                    if (!subpathStartIndex.HasValue) {
+                        subpathStartIndex = i;
+                    }
+                    break;
+
+                case PathOperationType.MoveTo: {
+                    if (subpathStartIndex.TryGet(out startIndex)) {
+                        BuildSubpath(builder, operations[startIndex..i], ref penPosition, ref thickness, ref color, writer, indexFormat);
+                    }
+
+                    subpathStartIndex = i + 1;
+                    penPosition = operation.Move.Destination;
+                    break;
+                }
+
+                case PathOperationType.Close: {
+                    if (!subpathStartIndex.TryGet(out startIndex)) continue;
+                    
+                    BuildSubpath(builder, operations[startIndex..(i + 1)], ref penPosition, ref thickness, ref color, writer, indexFormat);
+
+                    subpathStartIndex = Optional<int>.Null;
+                    break;
+                }
+            }
+        }
+
+        if (subpathStartIndex.TryGet(out startIndex)) {
+            BuildSubpath(builder, operations[startIndex..], ref penPosition, ref thickness, ref color, writer, indexFormat);
+        }
+    }
+    private static void BuildSubpath(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+        if (operations.IsEmpty) return;
+        
+        if (operations[^1] is { Type: PathOperationType.Close, Close.Loop: true }) {
+            BuildSubpathLoop(builder, operations, ref penPosition, ref thickness, ref color, writer, indexFormat);
+        } else {
+            BuildSubpathNoLoop(builder, operations, ref penPosition, ref thickness, ref color, writer, indexFormat);
         }
     }
     
     private readonly record struct PointAttribute(float Thickness, Color32 Color);
+    public readonly record struct Vertex(Vector2 Position, Color32 Color);
 }

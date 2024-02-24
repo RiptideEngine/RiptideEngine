@@ -1,3 +1,11 @@
 ﻿namespace RiptideFoundation.Helpers;
 
-public enum PathOperationType {  }
+internal enum PathOperationType {
+    SetColor,
+    SetThickness,
+    MoveTo,
+    LineTo,
+    QuadraticBezier,
+    CubicBezier,
+    Close,
+}

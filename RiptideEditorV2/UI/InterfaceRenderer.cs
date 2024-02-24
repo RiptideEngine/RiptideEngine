@@ -109,52 +109,54 @@ public sealed unsafe partial class InterfaceRenderer : IDisposable {
             
             Debug.Assert(pipeline != null, "pipeline != null");
             
-            if (_batchedCandidates.TryGetValue(pipeline, out var batched)) {
-                GetPipelineBatcher(pipeline).BuildBatch(pipeline, _document.Root, Matrix3x2.Identity, new(batching, batched!, pipeline));
+            if (_batchedCandidates.TryGetValue(pipeline, out var materialBatch)) {
+                GetPipelineBatcher(pipeline).BuildBatch(pipeline, _document.Root, Matrix3x2.Identity, new(batching, materialBatch!, pipeline));
                 
                 foreach ((var hash, var candidate) in batching) {
                     var builder = candidate.Builder;
                 
                     if (builder.WrittenIndexByteLength == 0) {
-                        batched.Remove(hash, out var batchedCandidateRemoval);
-                        
-                        batchedCandidateRemoval.Mesh?.DecrementReference();
-                        batchedCandidateRemoval.Properties?.DecrementReference();
+                        if (materialBatch.Remove(hash, out var batchedCandidateRemoval)) {
+                            batchedCandidateRemoval.Mesh?.DecrementReference();
+                        }
+
+                        candidate.Properties.DecrementReference();
                     } else {
-                        if (batched.TryGetValue(hash, out var existedCandidate)) {
+                        if (materialBatch.TryGetValue(hash, out var existedCandidate)) {
                             builder.Commit(cmdList, existedCandidate.Mesh, false);
                             existedCandidate.Mesh.SetSubmesh(0, new(default, 0, (uint)builder.WrittenIndexByteLength, IndexFormat.UInt16));
                         } else {
                             var mesh = builder.Commit(cmdList);
                             mesh.SetSubmeshes([new(default, 0, mesh.IndexSize, IndexFormat.UInt16)]);
                             
-                            batched.Add(hash, new(mesh, candidate.Properties));
+                            materialBatch.Add(hash, new(mesh, candidate.Properties));
                         }
                     }
                 
                     builder.Dispose();
                 }
             } else {
-                batched = new();
+                materialBatch = new();
                 
-                GetPipelineBatcher(pipeline).BuildBatch(pipeline, _document.Root, Matrix3x2.Identity, new(batching, batched!, pipeline));
+                GetPipelineBatcher(pipeline).BuildBatch(pipeline, _document.Root, Matrix3x2.Identity, new(batching, materialBatch!, pipeline));
                 
                 foreach ((var hash, var candidate) in batching) {
                     if (candidate.Builder.WrittenIndexByteLength == 0) {
                         candidate.Properties.DecrementReference();
                         candidate.Builder.Dispose();
+                        
                         continue;
                     }
                     
                     var mesh = candidate.Builder.Commit(cmdList);
                     mesh.SetSubmeshes([new(default, 0, mesh.IndexSize, IndexFormat.UInt16)]);
                     
-                    batched.Add(hash, new(mesh, candidate.Properties));
+                    materialBatch.Add(hash, new(mesh, candidate.Properties));
                     
                     candidate.Builder.Dispose();
                 }
                 
-                _batchedCandidates.Add(pipeline, batched);
+                _batchedCandidates.Add(pipeline, materialBatch);
             }
             
             batching.Clear();

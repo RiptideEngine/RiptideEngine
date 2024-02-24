@@ -1,6 +1,4 @@
-﻿using RiptideFoundation.Rendering;
-
-namespace RiptideEditorV2.UI;
+﻿namespace RiptideEditorV2.UI;
 
 public abstract class UIBatcher : IDisposable {
     private bool _disposed;

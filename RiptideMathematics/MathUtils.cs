@@ -46,11 +46,31 @@ public static class MathUtils {
     }
     public static float ExtractRoll(this Quaternion q) => MathF.Atan2(2.0f * (q.X * q.Y + q.Z * q.W), 1.0f - 2.0f * (q.X * q.X + q.Z * q.Z));
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static Matrix4x4 CreateModel(Vector3 position, Quaternion rotation, Vector3 scale) {
         return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(position);
     }
-
-    public static bool Approximate<T>(T a, T b, T threshold) where T : IFloatingPoint<T> {
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool IsApproximate<T>(T a, T b, T threshold) where T : IFloatingPoint<T> {
         return T.Abs(a - b) <= threshold;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static float GetSignedArea(Vector2 a, Vector2 b, Vector2 c) {
+        return 0.5f * (a.X * (b.Y - c.Y) + b.X * (c.Y - a.Y) + c.X * (a.Y - b.Y));
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c, float threshold = 0.0001f) {
+        var left = (a.Y - b.Y) * (a.X - c.X);
+        var right = (a.Y - c.Y) * (a.X - b.X);
+
+        return float.Abs(left - right) <= threshold;
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c, Vector2 d, float threshold = 0.0001f) {
+        return IsCollinear(a, b, c, threshold) && IsCollinear(b, c, d, threshold);
     }
 }

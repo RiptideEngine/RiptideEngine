@@ -1,6 +1,6 @@
 ﻿namespace RiptideFoundation;
 
-public enum CapType {
+public enum PathCapType {
     Butt = 0,
     Square = 1,
     Round = 2,

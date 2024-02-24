@@ -7,6 +7,7 @@ partial class EditorApplication {
     private static IWindow _window = null!;
 
     public static Vector2UInt WindowSize => Unsafe.BitCast<Vector2D<int>, Vector2UInt>(_window.Size);
+    public static double ElapsedTime => _window.Time;
     
     private static void CreateWindow() {
         _window = Window.Create(WindowOptions.Default with {

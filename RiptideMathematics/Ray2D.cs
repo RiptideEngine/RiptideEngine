@@ -8,6 +8,8 @@ public struct Ray2D(Vector2 position, Vector2 direction) : IEquatable<Ray2D> {
     public Ray2D(Vector2 position, float dirX, float dirY) : this(position, new(dirX, dirY)) { }
     public Ray2D(float x, float y, float dirX, float dirY) : this(new(x, y), new(dirX, dirY)) { }
 
+    public Vector2 GetPosition(float distance) => Position + Direction * distance;
+
     public void Deconstruct(out Vector2 position, out Vector2 direction) {
         position = Position;
         direction = Direction;
@@ -19,6 +21,8 @@ public struct Ray2D(Vector2 position, Vector2 direction) : IEquatable<Ray2D> {
         dirX = Direction.X;
         dirY = Direction.Y;
     }
+
+    public Line2D ToLine() => Unsafe.BitCast<Ray2D, Line2D>(this);
 
     public override readonly int GetHashCode() => HashCode.Combine(Position, Direction);
 
