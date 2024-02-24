@@ -1,126 +1,29 @@
-﻿using SixLabors.ImageSharp;
-using Color = RiptideMathematics.Color;
+﻿using Color = RiptideMathematics.Color;
 
 namespace RiptideFoundation.Helpers;
 
 // TODO: Round, Bevel joints.
 // TODO: Bezier Curve resolution.
 
-file readonly record struct PointAttribute(float Thickness, Color32 Color);
-
-public partial struct PathBuilder {
-    private enum OperationType {
-        SetColor,
-        SetThickness,
-        MoveTo,
-        LineTo,
-        HorizontalLine,
-        VerticalLine,
-        QuadraticBezier,
-        CubicBezier,
-        Close,
-    }
-    
-    [StructLayout(LayoutKind.Explicit)]
-    private readonly struct PathOperation {
-        [field: FieldOffset(0)] public required OperationType Type { get; init; }
-        [field: FieldOffset(4)] public MoveOperation Move { get; init; }
-        [field: FieldOffset(4)] public LineOperation Line { get; init; }
-        [field: FieldOffset(4)] public AxisAlignedLineOperation HorizontalLine { get; init; }
-        [field: FieldOffset(4)] public AxisAlignedLineOperation VerticalLine { get; init; }
-        [field: FieldOffset(4)] public Color32 Color { get; init; }
-        [field: FieldOffset(4)] public float Thickness { get; init; }
-        [field: FieldOffset(4)] public QuadraticBezierOperation QuadraticBezier { get; init; }
-        [field: FieldOffset(4)] public CubicBezierOperation CubicBezier { get; init; }
-        [field: FieldOffset(4)] public CloseOperation Close { get; init; }
-
-        public struct MoveOperation {
-            public required Vector2 Destination;
-        }
-
-        public struct LineOperation {
-            public required Vector2 Destination;
-        }
-
-        public struct AxisAlignedLineOperation {
-            public required float Destination;
-        }
-
-        public readonly record struct QuadraticBezierOperation(Vector2 Control, Vector2 Destination);
-        public readonly record struct CubicBezierOperation(Vector2 StartControl, Vector2 EndControl, Vector2 Destination);
-        
-        public struct CloseOperation {
-            public required bool Loop;
-        }
-    }
-
-    private static void Build(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, float thickness, Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
-        Vector2 penPosition = Vector2.Zero;
-        Optional<int> subpathStartIndex = Optional<int>.Null;
-        int index;
-
-        for (int i = 0; i < operations.Length; i++) {
-            ref readonly var operation = ref operations[i];
-
-            switch (operation.Type) {
-                case OperationType.SetColor:
-                    if (subpathStartIndex.HasValue) continue;
-
-                    color = operation.Color;
-                    break;
-                
-                case OperationType.SetThickness:
-                    if (subpathStartIndex.HasValue) continue;
-
-                    thickness = operation.Thickness;
-                    break;
-                
-                case OperationType.LineTo or OperationType.QuadraticBezier or OperationType.CubicBezier:
-                    if (!subpathStartIndex.HasValue) {
-                        subpathStartIndex = i;
-                    }
-                    break;
-
-                case OperationType.MoveTo: {
-                    if (subpathStartIndex.TryGet(out index)) {
-                        if (i - index > 0) {
-                            BuildSubpath(builder, operations[index..i], ref penPosition, ref thickness, ref color, writer, indexFormat);
-                        }
-                    }
-
-                    subpathStartIndex = i + 1;
-                    penPosition = operation.Move.Destination;
-                    break;
-                }
-
-                case OperationType.Close: {
-                    if (!subpathStartIndex.TryGet(out index)) continue;
-
-                    if (i - index > 1) {
-                        BuildSubpath(builder, operations[index..(i + 1)], ref penPosition, ref thickness, ref color, writer, indexFormat);
-                    }
-
-                    subpathStartIndex = Optional<int>.Null;
-                    break;
-                }
-            }
-        }
-
-        if (subpathStartIndex.TryGet(out index)) {
-            if (operations.Length - index > 1) {
-                BuildSubpath(builder, operations[index..], ref penPosition, ref thickness, ref color, writer, indexFormat);
-            }
-        }
-    }
-    
+partial class PathBuilding {
     private static void BuildSubpath(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         bool loop = operations[^1] is { Type: OperationType.Close, Close.Loop: true };
         
         const float lineDistanceThreshold = 0.001f;
 
         if (loop) {
-            // Plot normally from the second draw operation, and execute the remain and the first like a whole.
-            
+            Optional<int> firstDrawIndex = Optional<int>.Null, lastDrawIndex = Optional<int>.Null;
+
+            for (int i = 0; i < operations.Length; i++) {
+                if (operations[i].Type is OperationType.LineTo or OperationType.HorizontalLine or OperationType.VerticalLine or OperationType.QuadraticBezier or OperationType.CubicBezier) {
+                    firstDrawIndex = i;
+                    break;
+                }
+            }
+
+            if (!firstDrawIndex.HasValue) {
+                
+            }
             
             throw new NotImplementedException("Looping is currently being implemented.");
         } else {
@@ -155,8 +58,7 @@ public partial struct PathBuilder {
 
                         (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
 
-                        float previousThickness;
-                        Color32 previousColor;
+                        PointAttribute previous;
                         
                         if (firstPointAttribute.TryGet(out var first)) {
                             var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 0));
@@ -165,42 +67,17 @@ public partial struct PathBuilder {
                             writer(builder, new(penPosition + normal * first.Thickness, first.Color));
                             writer(builder, new(penPosition - normal * first.Thickness, first.Color));
 
-                            (previousThickness, previousColor) = first;
+                            previous = first;
 
                             firstPointAttribute = Optional<PointAttribute>.Null;
                         } else {
                             Debug.Assert(previousPointAttribute.HasValue, "previousPointAttribute.HasValue");
 
-                            (previousThickness, previousColor) = previousPointAttribute.GetUnchecked();
-                        }
-                        
-                        for (int s = 1; s < resolution; s++) {
-                            float t = 1f / resolution * s;
-                            
-                            var position = QuadraticBezier.GetPosition(penPosition, control, destination, t);
-                            var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, t));
-                            
-                            var normal = new Vector2(-direction.Y, direction.X);
-                            
-                            var vcount = builder.GetLargestWrittenVertexCount();
-
-                            float segmentThickness = float.Lerp(previousThickness, thickness, t) / 2;
-                            Color32 segmentColor = (Color32)Color.Lerp(previousColor, color, t);
-                            
-                            writer(builder, new(position + normal * segmentThickness, segmentColor));
-                            writer(builder, new(position - normal * segmentThickness, segmentColor));
-                            
-                            WriteQuadIndices(builder, indexFormat, (uint)vcount);
+                            previous = previousPointAttribute.GetUnchecked();
                         }
 
-                        {
-                            var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1));
-                            var normal = new Vector2(-direction.Y, direction.X);
-
-                            var vcount = builder.GetLargestWrittenVertexCount();
-                            GenerateJointVerticesPair(builder, operations[(i + 1)..], destination, direction, normal, color, thickness, writer);
-                            WriteQuadIndices(builder, indexFormat, (uint)vcount);
-                        }
+                        PlotQuadraticCurveBody(builder, penPosition, control, destination, resolution, previous, new(thickness, color), writer, indexFormat);
+                        GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1)), color, thickness, writer, indexFormat);
                         
                         previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
                         penPosition = destination;
@@ -212,8 +89,7 @@ public partial struct PathBuilder {
 
                         (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
 
-                        float previousThickness;
-                        Color32 previousColor;
+                        PointAttribute previous;
                         
                         if (firstPointAttribute.TryGet(out var first)) {
                             var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 0));
@@ -222,42 +98,17 @@ public partial struct PathBuilder {
                             writer(builder, new(penPosition + normal * first.Thickness, first.Color));
                             writer(builder, new(penPosition - normal * first.Thickness, first.Color));
 
-                            (previousThickness, previousColor) = first;
+                            previous = first;
 
                             firstPointAttribute = Optional<PointAttribute>.Null;
                         } else {
                             Debug.Assert(previousPointAttribute.HasValue, "previousPointAttribute.HasValue");
 
-                            (previousThickness, previousColor) = previousPointAttribute.GetUnchecked();
+                            previous = previousPointAttribute.GetUnchecked();
                         }
-                        
-                        for (int s = 1; s < resolution; s++) {
-                            float t = 1f / resolution * s;
-                            
-                            var position = CubicBezier.GetPosition(penPosition, startControl, endControl, destination, t);
-                            var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, t));
-                            
-                            var normal = new Vector2(-direction.Y, direction.X);
-                            
-                            var vcount = builder.GetLargestWrittenVertexCount();
 
-                            float segmentThickness = float.Lerp(previousThickness, thickness, t) / 2;
-                            Color32 segmentColor = (Color32)Color.Lerp(previousColor, color, t);
-                            
-                            writer(builder, new(position + normal * segmentThickness, segmentColor));
-                            writer(builder, new(position - normal * segmentThickness, segmentColor));
-                            
-                            WriteQuadIndices(builder, indexFormat, (uint)vcount);
-                        }
-                        
-                        {
-                            var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1));
-                            var normal = new Vector2(-direction.Y, direction.X);
-
-                            var vcount = builder.GetLargestWrittenVertexCount();
-                            GenerateJointVerticesPair(builder, operations[(i + 1)..], destination, direction, normal, color, thickness, writer);
-                            WriteQuadIndices(builder, indexFormat, (uint)vcount);
-                        }
+                        PlotCubicCurveBody(builder, penPosition, startControl, endControl, destination, resolution, previous, new(thickness, color), writer, indexFormat);
+                        GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1)), color, thickness, writer, indexFormat);
                         
                         previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
                         penPosition = destination;
@@ -266,7 +117,7 @@ public partial struct PathBuilder {
                 }
             }
         }
-
+        
         static Optional<Ray2D> GetSecondIntersectionRay(ReadOnlySpan<PathOperation> operations, Vector2 position, float thickness, float lineDistanceThreshold) {
             foreach (ref readonly var operation in operations) {
                 switch (operation.Type) {
@@ -317,12 +168,23 @@ public partial struct PathBuilder {
 
                         return Optional<Ray2D>.From(Ray2D.CreateWithoutNormalize(position + normal * thickness / 2, -direction));
                     }
+                    
+                    default: continue;
                 }
             }
         
             return Optional<Ray2D>.Null;
         }
 
+        static void GenerateAndConnectJointVerticesPairToPreviousVerticesPair(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Color32 color, float thickness, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+            {
+                var normal = new Vector2(-direction.Y, direction.X);
+
+                var vcount = builder.GetLargestWrittenVertexCount();
+                GenerateJointVerticesPair(builder, operations, position, direction, normal, color, thickness, writer);
+                WriteQuadIndices(builder, indexFormat, (uint)vcount);
+            }
+        }
         static void GenerateJointVerticesPair(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, Color32 color, float thickness, VertexWriter<Vertex> writer) {
             Ray2D ray1 = Ray2D.CreateWithoutNormalize(position + normal * thickness / 2, direction);
             if (GetSecondIntersectionRay(operations, position, thickness, lineDistanceThreshold).TryGet(out var ray2)) {
@@ -364,6 +226,46 @@ public partial struct PathBuilder {
                         
             penPosition = lineDestination;
             previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
+        }
+        static void PlotQuadraticCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 control, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+            for (int s = 1; s < resolution; s++) {
+                float t = 1f / resolution * s;
+                
+                var position = QuadraticBezier.GetPosition(penPosition, control, destination, t);
+                var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, t));
+                
+                var normal = new Vector2(-direction.Y, direction.X);
+                
+                var vcount = builder.GetLargestWrittenVertexCount();
+
+                float segmentThickness = float.Lerp(previousAttribute.Thickness, attribute.Thickness, t) / 2;
+                Color32 segmentColor = (Color32)Color.Lerp(previousAttribute.Color, attribute.Color, t);
+                
+                writer(builder, new(position + normal * segmentThickness, segmentColor));
+                writer(builder, new(position - normal * segmentThickness, segmentColor));
+                
+                WriteQuadIndices(builder, indexFormat, (uint)vcount);
+            }
+        }
+        static void PlotCubicCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 startControl, Vector2 endControl, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+            for (int s = 1; s < resolution; s++) {
+                float t = 1f / resolution * s;
+                
+                var position = CubicBezier.GetPosition(penPosition, startControl, endControl, destination, t);
+                var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, t));
+
+                var normal = new Vector2(-direction.Y, direction.X);
+                
+                var vcount = builder.GetLargestWrittenVertexCount();
+
+                float segmentThickness = float.Lerp(previousAttribute.Thickness, attribute.Thickness, t) / 2;
+                Color32 segmentColor = (Color32)Color.Lerp(previousAttribute.Color, attribute.Color, t);
+                
+                writer(builder, new(position + normal * segmentThickness, segmentColor));
+                writer(builder, new(position - normal * segmentThickness, segmentColor));
+                
+                WriteQuadIndices(builder, indexFormat, (uint)vcount);
+            }
         }
         
         static void WriteQuadIndices(MeshBuilder builder, IndexFormat format, uint start) {
