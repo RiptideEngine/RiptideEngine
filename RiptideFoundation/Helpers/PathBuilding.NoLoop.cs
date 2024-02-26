@@ -6,14 +6,88 @@
 partial class PathBuilding {
     private static void BuildSubpathNoLoop(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         const float lineDistanceThreshold = 0.001f;
+        const int BezierCurveResolution = 16;
         
-        var firstPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
-        var previousPointAttribute = firstPointAttribute;
+        PointAttribute previousPointAttribute = new(thickness, color);
 
         const int RoundCapResolution = 8;
         PathCapType capType = operations[^1] is { Type: PathOperationType.Close } close ? close.Close.CapType : PathCapType.Butt;
 
         var endCapInformation = Optional<CapGenerateInfo>.Null;
+
+        for (int i = 0; i < operations.Length; i++) {
+            ref readonly var operation = ref operations[i];
+
+            switch (operation.Type) {
+                case PathOperationType.SetThickness: thickness = operation.Thickness; break;
+                case PathOperationType.SetColor: color = operation.Color; break;
+                case PathOperationType.MoveTo: throw new UnreachableException("MoveTo is unexpected because it is associated with closing the current subpath (which marks the slicing boundary).");
+
+                case PathOperationType.LineTo: {
+                    Vector2 lineDestination = operation.Line.Destination;
+                    
+                    var direction = Vector2.Normalize(lineDestination - penPosition);
+                    var normal = new Vector2(-direction.Y, direction.X);
+
+                    GenerateHeadCap(builder, new(penPosition, direction, normal, previousPointAttribute), capType, RoundCapResolution, writer, indexFormat);
+                    
+                    var vcount = builder.GetLargestWrittenVertexCount();
+                    GenerateJointVerticesPair(builder, operations[(i + 1)..], lineDestination, direction, normal, color, thickness, writer);
+                    
+                    WriteQuadIndices(builder, indexFormat, (uint)vcount);
+
+                    endCapInformation = new CapGenerateInfo(lineDestination, direction, normal, new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
+                    
+                    penPosition = lineDestination;
+                    goto breakLoop;
+                }
+
+                case PathOperationType.QuadraticBezier: {
+                    (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
+
+                    var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 0));
+                    var normal = new Vector2(-direction.Y, direction.X);
+                    
+                    GenerateHeadCap(builder, new(penPosition, direction, normal, previousPointAttribute), capType, RoundCapResolution, writer, indexFormat);
+
+                    PlotQuadraticCurveBody(builder, penPosition, control, destination, BezierCurveResolution, previousPointAttribute, new(thickness, color), writer, indexFormat);
+                    GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1)), color, thickness, writer, indexFormat);
+
+                    direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1));
+                    endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
+                    penPosition = destination;
+                    
+                    goto breakLoop;
+                }
+
+                case PathOperationType.CubicBezier: {
+                    (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
+
+                    var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 0));
+                    var normal = new Vector2(-direction.Y, direction.X);
+                    
+                    GenerateHeadCap(builder, new(penPosition, direction, normal, previousPointAttribute), capType, RoundCapResolution, writer, indexFormat);
+
+                    PlotCubicCurveBody(builder, penPosition, startControl, endControl, destination, BezierCurveResolution, previousPointAttribute, new(thickness, color), writer, indexFormat);
+                    GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1)), color, thickness, writer, indexFormat);
+
+                    direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1));
+                    endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
+                    penPosition = destination;
+                    
+                    goto breakLoop;
+                }
+            }
+
+            continue;
+            
+            breakLoop:
+            operations = operations[(i + 1)..];
+            break;
+        }
         
         for (int i = 0; i < operations.Length; i++) {
             ref readonly var operation = ref operations[i];
@@ -30,19 +104,13 @@ partial class PathBuilding {
                     var direction = Vector2.Normalize(lineDestination - penPosition);
                     var normal = new Vector2(-direction.Y, direction.X);
 
-                    if (firstPointAttribute.TryGet(out var first)) {
-                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
-
-                        firstPointAttribute = Optional<PointAttribute>.Null;
-                    }
-                    
                     var vcount = builder.GetLargestWrittenVertexCount();
                     GenerateJointVerticesPair(builder, operations[(i + 1)..], lineDestination, direction, normal, color, thickness, writer);
                     
                     WriteQuadIndices(builder, indexFormat, (uint)vcount);
 
                     endCapInformation = new CapGenerateInfo(lineDestination, direction, normal, new(thickness, color));
-                    previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
                     
                     finish:
                     penPosition = lineDestination;
@@ -50,69 +118,28 @@ partial class PathBuilding {
                 }
 
                 case PathOperationType.QuadraticBezier: {
-                    const int resolution = 16;
-
                     (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
 
-                    PointAttribute previous;
-                    Vector2 direction;
-                    
-                    if (firstPointAttribute.TryGet(out var first)) {
-                        direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 0));
-                        var normal = new Vector2(-direction.Y, direction.X);
-                        
-                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
-
-                        previous = first;
-
-                        firstPointAttribute = Optional<PointAttribute>.Null;
-                    } else {
-                        Debug.Assert(previousPointAttribute.HasValue, "previousPointAttribute.HasValue");
-
-                        previous = previousPointAttribute.GetUnchecked();
-                    }
-
-                    PlotQuadraticCurveBody(builder, penPosition, control, destination, resolution, previous, new(thickness, color), writer, indexFormat);
+                    PlotQuadraticCurveBody(builder, penPosition, control, destination, BezierCurveResolution, previousPointAttribute, new(thickness, color), writer, indexFormat);
                     GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1)), color, thickness, writer, indexFormat);
                     
-                    previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
 
-                    direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1));
+                    var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1));
                     endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
                     penPosition = destination;
                     break;
                 }
 
                 case PathOperationType.CubicBezier: {
-                    const int resolution = 16;
-
                     (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
 
-                    PointAttribute previous;
-                    Vector2 direction;
-                    
-                    if (firstPointAttribute.TryGet(out var first)) {
-                        direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 0));
-                        var normal = new Vector2(-direction.Y, direction.X);
-                        
-                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
-
-                        previous = first;
-
-                        firstPointAttribute = Optional<PointAttribute>.Null;
-                    } else {
-                        Debug.Assert(previousPointAttribute.HasValue, "previousPointAttribute.HasValue");
-
-                        previous = previousPointAttribute.GetUnchecked();
-                    }
-
-                    PlotCubicCurveBody(builder, penPosition, startControl, endControl, destination, resolution, previous, new(thickness, color), writer, indexFormat);
+                    PlotCubicCurveBody(builder, penPosition, startControl, endControl, destination, BezierCurveResolution, previousPointAttribute, new(thickness, color), writer, indexFormat);
                     GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1)), color, thickness, writer, indexFormat);
-                    
-                    previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
 
-                    direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1));
+                    var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1));
                     endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
+                    previousPointAttribute = new(thickness, color);
                     penPosition = destination;
                     break;
                 }
