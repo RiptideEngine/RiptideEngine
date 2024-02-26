@@ -13,7 +13,7 @@ partial class PathBuilding {
         const int RoundCapResolution = 8;
         PathCapType capType = operations[^1] is { Type: PathOperationType.Close } close ? close.Close.CapType : PathCapType.Butt;
 
-        var endCapInformation = Optional<(PointAttribute Attribute, Vector2 Direction)>.Null;
+        var endCapInformation = Optional<CapGenerateInfo>.Null;
         
         for (int i = 0; i < operations.Length; i++) {
             ref readonly var operation = ref operations[i];
@@ -31,7 +31,7 @@ partial class PathBuilding {
                     var normal = new Vector2(-direction.Y, direction.X);
 
                     if (firstPointAttribute.TryGet(out var first)) {
-                        GenerateHeadCap(builder, penPosition, normal, first, capType, RoundCapResolution, writer, indexFormat);
+                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
 
                         firstPointAttribute = Optional<PointAttribute>.Null;
                     }
@@ -40,8 +40,8 @@ partial class PathBuilding {
                     GenerateJointVerticesPair(builder, operations[(i + 1)..], lineDestination, direction, normal, color, thickness, writer);
                     
                     WriteQuadIndices(builder, indexFormat, (uint)vcount);
-                    
-                    endCapInformation = (new(thickness, color), direction);
+
+                    endCapInformation = new CapGenerateInfo(lineDestination, direction, normal, new(thickness, color));
                     previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
                     
                     finish:
@@ -55,12 +55,13 @@ partial class PathBuilding {
                     (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
 
                     PointAttribute previous;
+                    Vector2 direction;
                     
                     if (firstPointAttribute.TryGet(out var first)) {
-                        var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 0));
+                        direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 0));
                         var normal = new Vector2(-direction.Y, direction.X);
                         
-                        GenerateHeadCap(builder, penPosition, normal, first, capType, RoundCapResolution, writer, indexFormat);
+                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
 
                         previous = first;
 
@@ -75,7 +76,9 @@ partial class PathBuilding {
                     GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1)), color, thickness, writer, indexFormat);
                     
                     previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
-                    endCapInformation = (new(thickness, color), Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1)));
+
+                    direction = Vector2.Normalize(QuadraticBezier.GetVelocity(penPosition, control, destination, 1));
+                    endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
                     penPosition = destination;
                     break;
                 }
@@ -86,12 +89,13 @@ partial class PathBuilding {
                     (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
 
                     PointAttribute previous;
+                    Vector2 direction;
                     
                     if (firstPointAttribute.TryGet(out var first)) {
-                        var direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 0));
+                        direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 0));
                         var normal = new Vector2(-direction.Y, direction.X);
                         
-                        GenerateHeadCap(builder, penPosition, normal, first, capType, RoundCapResolution, writer, indexFormat);
+                        GenerateHeadCap(builder, new(penPosition, direction, normal, first), capType, RoundCapResolution, writer, indexFormat);
 
                         previous = first;
 
@@ -106,7 +110,9 @@ partial class PathBuilding {
                     GenerateAndConnectJointVerticesPairToPreviousVerticesPair(builder, operations[(i + 1)..], destination, Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1)), color, thickness, writer, indexFormat);
                     
                     previousPointAttribute = Optional<PointAttribute>.From(new(thickness, color));
-                    endCapInformation = (new(thickness, color), Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1)));
+
+                    direction = Vector2.Normalize(CubicBezier.GetVelocity(penPosition, startControl, endControl, destination, 1));
+                    endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
                     penPosition = destination;
                     break;
                 }
@@ -114,8 +120,8 @@ partial class PathBuilding {
         }
         
         // Generate end cap.
-        if (capType != PathCapType.Butt && endCapInformation.TryGet(out var information)) {
-            GenerateHeadCap(builder, penPosition, new(information.Direction.Y, -information.Direction.X), information.Attribute, capType, RoundCapResolution, writer, indexFormat);
+        if (endCapInformation.TryGet(out var information)) {
+            GenerateEndCap(builder, information, capType, RoundCapResolution, writer, indexFormat);
         }
         
         static Optional<Ray2D> GetSecondIntersectionRay(ReadOnlySpan<PathOperation> operations, Vector2 position, float thickness, float lineDistanceThreshold) {
@@ -180,91 +186,5 @@ partial class PathBuilding {
         }
     }
 
-    private static void GenerateHeadCap(MeshBuilder builder, Vector2 position, Vector2 normal, PointAttribute attribute, PathCapType type, int roundResolution, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
-        switch (type) {
-            case PathCapType.Butt: GenerateButtCap(builder, position, normal, attribute, writer); break;
-            case PathCapType.Round:
-                if (roundResolution == 0) {
-                    GenerateButtCap(builder, position, normal, attribute, writer);
-                } else {
-                    GenerateRoundCap(builder, position, normal, attribute, roundResolution, writer, indexFormat);
-                }
-                break;
-            case PathCapType.Square: throw new NotImplementedException("Square cap is being implemented.");
-        }
-        
-        static void GenerateButtCap(MeshBuilder builder, Vector2 position, Vector2 normal, PointAttribute attribute, VertexWriter<Vertex> writer) {
-            normal *= attribute.Thickness / 2;
-            
-            writer(builder, new(position + normal, attribute.Color));
-            writer(builder, new(position - normal, attribute.Color));
-        }
-
-        static void GenerateRoundCap(MeshBuilder builder, Vector2 position, Vector2 normal, PointAttribute attribute, int resolution, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
-            normal *= attribute.Thickness / 2;
-            int vcount = builder.GetLargestWrittenVertexCount();
-
-            if (resolution == 1) {
-                writer(builder, new(position + new Vector2(-normal.Y, normal.X), attribute.Color));
-                writer(builder, new(position + normal, attribute.Color));
-                writer(builder, new(position - normal, attribute.Color));
-
-                if (indexFormat == IndexFormat.UInt16) {
-                    builder.WriteIndices(stackalloc ushort[] {
-                        (ushort)(vcount + 1),
-                        (ushort)(vcount + 0),
-                        (ushort)(vcount + 2),
-                    });
-                }
-            } else {
-                writer(builder, new(position, attribute.Color));
-                float step = float.Pi / (resolution + 1);
-                
-                for (int i = 1; i <= resolution; i++) {
-                    var direction = Vector2.TransformNormal(normal, Matrix3x2.CreateRotation(step * i));
-                    
-                    writer(builder, new(position + direction, attribute.Color));
-                }
-
-                int vcount2 = builder.GetLargestWrittenVertexCount();
-                
-                writer(builder, new(position + normal, attribute.Color));
-                writer(builder, new(position - normal, attribute.Color));
-                
-                // Triangulation.
-                if (indexFormat == IndexFormat.UInt16) {
-                    Span<ushort> indices = stackalloc ushort[3];
-                    indices[0] = (ushort)vcount;
-                    
-                    for (int i = 1; i < resolution; i++) {
-                        indices[1] = (ushort)(vcount + i);
-                        indices[2] = (ushort)(vcount + i + 1);
-                        
-                        builder.WriteIndices(indices);
-                    }
-
-                    builder.WriteIndices(stackalloc ushort[] {
-                        (ushort)vcount, (ushort)vcount2, (ushort)(vcount + 1),
-                        (ushort)(vcount + resolution), (ushort)(vcount2 + 1), (ushort)vcount,
-                    });
-                } else {
-                    Span<uint> indices = stackalloc uint[3];
-                    
-                    indices[0] = (uint)vcount;
-                    
-                    for (int i = 1; i < resolution; i++) {
-                        indices[1] = (uint)(vcount + i);
-                        indices[2] = (uint)(vcount + i + 1);
-                        
-                        builder.WriteIndices(indices);
-                    }
-
-                    builder.WriteIndices(stackalloc uint[] {
-                        (uint)vcount, (uint)vcount2, (uint)(vcount + 1),
-                        (uint)(vcount + resolution), (uint)(vcount2 + 1), (uint)vcount,
-                    });
-                }
-            }
-        }
-    }
+    
 }

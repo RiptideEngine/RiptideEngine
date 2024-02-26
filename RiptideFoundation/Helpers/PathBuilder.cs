@@ -61,6 +61,9 @@ public partial struct PathBuilder {
 
         return ref this;
     }
+
+    [UnscopedRef]
+    public ref PathBuilder MoveRelative(Vector2 offset) => ref MoveTo(_position + offset);
     
     [UnscopedRef]
     public ref PathBuilder LineTo(Vector2 destination) {
@@ -76,33 +79,13 @@ public partial struct PathBuilder {
         return ref this;
     }
 
-    [UnscopedRef]
-    public ref PathBuilder HorizontalLineTo(float x) {
-        _operations.Add(new() {
-            Type = PathOperationType.LineTo,
-            Line = new() {
-                Destination = _position with { X = x },
-            },
-        });
+    [UnscopedRef] public ref PathBuilder LineRelative(Vector2 offset) => ref LineTo(_position + offset);
+    [UnscopedRef] public ref PathBuilder HorizontalLineTo(float x) => ref LineTo(new(x, _position.Y));
+    [UnscopedRef] public ref PathBuilder HorizontalLineRelative(float xOffset) => ref LineTo(new(_position.X + xOffset, _position.Y));
 
-        _position.X = x;
-
-        return ref this;
-    }
+    [UnscopedRef] public ref PathBuilder VerticalLineTo(float y) => ref LineTo(new(_position.X, y));
+    [UnscopedRef] public ref PathBuilder VerticalLineRelative(float yOffset) => ref LineTo(new(_position.X, _position.Y + yOffset));
     
-    [UnscopedRef]
-    public ref PathBuilder VerticalLineTo(float y) {
-        _operations.Add(new() {
-            Type = PathOperationType.LineTo,
-            Line = new() {
-                Destination = _position with { Y = y },
-            },
-        });
-        _position.Y = y;
-
-        return ref this;
-    }
-
     [UnscopedRef]
     public ref PathBuilder BezierTo(Vector2 control, Vector2 destination) {
         _operations.Add(new() {

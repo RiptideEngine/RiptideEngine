@@ -60,14 +60,14 @@ public static class MathUtils {
     public static float GetSignedArea(Vector2 a, Vector2 b, Vector2 c) {
         return 0.5f * (a.X * (b.Y - c.Y) + b.X * (c.Y - a.Y) + c.X * (a.Y - b.Y));
     }
-    
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c, float threshold = 0.0001f) {
-        var left = (a.Y - b.Y) * (a.X - c.X);
-        var right = (a.Y - c.Y) * (a.X - b.X);
 
-        return float.Abs(left - right) <= threshold;
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool IsDirectionCollinear(Vector2 d1, Vector2 d2, float threshold = 0.0001f) {
+        return float.Abs(d1.X * d2.Y - d2.X * d1.Y) <= threshold;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c, float threshold = 0.0001f) => IsDirectionCollinear(a - b, a - c, threshold);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static bool IsCollinear(Vector2 a, Vector2 b, Vector2 c, Vector2 d, float threshold = 0.0001f) {

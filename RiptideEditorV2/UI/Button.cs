@@ -50,14 +50,13 @@ public sealed unsafe class Button : VisualElement {
 
         pathBuilder.Begin();
         {
-            pathBuilder.SetColor(Color32.White).SetThickness(20)
-                .MoveTo(new(500, 500))
-                .HorizontalLineTo(700)
-                .BezierTo(new(800, 500), new(800, 400))
-                .BezierTo(new(800, 300), new(700, 300))
-                .BezierTo(new(600, 300), new(600, 400))
-                .VerticalLineTo(600)
-                .CloseSubpath(PathCapType.Round);
+            pathBuilder.SetColor(Color32.Red).SetThickness(10)
+                       .MoveTo(new(200, 500))
+                       .SetThickness(20)
+                       .LineTo(new(200, 600))
+                       .SetThickness(10)
+                       .LineTo(new(100, 600))
+                       .CloseSubpath(PathCapType.Round);
         }
         pathBuilder.End();
         
