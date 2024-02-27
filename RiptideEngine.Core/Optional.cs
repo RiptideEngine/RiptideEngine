@@ -1,6 +1,6 @@
 ﻿namespace RiptideEngine.Core;
 
-public readonly struct Optional<T> {
+public readonly struct Optional<T> : IEquatable<Optional<T>> {
     public static Optional<T> Null => new(default, false);
 
     private readonly T? _value;
@@ -26,6 +26,17 @@ public readonly struct Optional<T> {
 
     public T? GetUnchecked() => _value;
 
+    public bool Equals(Optional<T> other) {
+        if (HasValue) {
+            return other.HasValue && EqualityComparer<T>.Default.Equals(_value, other._value);
+        }
+        
+        return !other.HasValue;
+    }
+
+    public override int GetHashCode() => typeof(T).IsValueType ? HasValue ? _value!.GetHashCode() : 0 : _value == null ? 0 : _value!.GetHashCode();
+    public override string? ToString() => typeof(T).IsValueType ? HasValue ? _value!.ToString() : string.Empty : _value == null ? string.Empty : _value!.ToString();
+
     public static Optional<T> From(T? result) {
         if (typeof(T).IsValueType) {
             return new(result, true);
@@ -33,6 +44,5 @@ public readonly struct Optional<T> {
         
         return new(result, result != null);
     }
-
     public static implicit operator Optional<T>(T? value) => From(value);
 }

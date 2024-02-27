@@ -1,6 +1,14 @@
 ﻿namespace RiptideFoundation.Helpers;
 
 partial class PathBuilding {
+    private static void WriteSegmentQuadIndices(MeshBuilder builder, IndexFormat format, uint vcount, WindingDirection windingDirection) {
+        if (windingDirection == WindingDirection.Clockwise) {
+            ConnectQuadFromIndices(builder, format, vcount + 1, vcount - 1, vcount - 2, vcount - 2, vcount, vcount + 1);
+        } else {
+            ConnectQuadFromIndices(builder, format, vcount - 2, vcount, vcount + 1, vcount + 1, vcount - 1, vcount - 2);
+        }
+    }
+    
     private static void ConnectQuadFromIndices(MeshBuilder builder, IndexFormat format, uint i1, uint i2, uint i3, uint i4, uint i5, uint i6) {
         if (format == IndexFormat.UInt16) {
             builder.WriteIndices(stackalloc ushort[] {
@@ -15,7 +23,7 @@ partial class PathBuilding {
         }
     }
     
-    private static void PlotQuadraticCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 control, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+    private static void PlotQuadraticCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 control, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, WindingDirection windingDirection, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         float stepSize = 1f / (resolution + 1);
         
         for (int i = 1; i <= resolution; i++) {
@@ -34,10 +42,10 @@ partial class PathBuilding {
             writer(builder, new(position + normal * segmentThickness, segmentColor));
             writer(builder, new(position - normal * segmentThickness, segmentColor));
             
-            WriteQuadIndices(builder, indexFormat, (uint)vcount);
+            WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
         }
     }
-    private static void PlotCubicCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 startControl, Vector2 endControl, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+    private static void PlotCubicCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 startControl, Vector2 endControl, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, WindingDirection windingDirection, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         float stepSize = 1f / (resolution + 1);
         
         for (int s = 1; s <= resolution; s++) {
@@ -56,7 +64,7 @@ partial class PathBuilding {
             writer(builder, new(position + normal * segmentThickness, segmentColor));
             writer(builder, new(position - normal * segmentThickness, segmentColor));
             
-            WriteQuadIndices(builder, indexFormat, (uint)vcount);
+            WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
         }
     }
     
@@ -94,27 +102,6 @@ partial class PathBuilding {
         }
     
         return Optional<Ray2D>.Null;
-    }
-    private static void WriteQuadIndices(MeshBuilder builder, IndexFormat format, uint start) {
-        if (format == IndexFormat.UInt16) {
-            builder.WriteIndices(stackalloc ushort[] {
-                (ushort)(start - 2),
-                (ushort)start,
-                (ushort)(start + 1),
-                (ushort)(start + 1),
-                (ushort)(start - 1),
-                (ushort)(start - 2),
-            });
-        } else {
-            builder.WriteIndices(stackalloc uint[] {
-                start + 0,
-                start + 2,
-                start + 3,
-                start + 3,
-                start + 1,
-                start + 0,
-            });
-        }
     }
     
     private enum WindingDirection {
