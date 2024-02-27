@@ -96,6 +96,7 @@ public partial struct PathBuilder {
 
         return ref this;
     }
+    [UnscopedRef] public ref PathBuilder BezierRelative(Vector2 controlOffset, Vector2 destinationOffset) => ref BezierTo(_position + controlOffset, _position + destinationOffset);
 
     [UnscopedRef]
     public ref PathBuilder BezierTo(Vector2 startControl, Vector2 endControl, Vector2 destination) {
@@ -107,6 +108,7 @@ public partial struct PathBuilder {
 
         return ref this;
     }
+    [UnscopedRef] public ref PathBuilder BezierRelative(Vector2 startControlOffset, Vector2 endControlOffset, Vector2 destinationOffset) => ref BezierTo(_position + startControlOffset, _position + endControlOffset, _position + destinationOffset);
 
     [UnscopedRef]
     public ref PathBuilder CloseSubpath(PathCapType capType = PathCapType.Butt) {

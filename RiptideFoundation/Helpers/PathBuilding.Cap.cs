@@ -1,27 +1,27 @@
 ﻿namespace RiptideFoundation.Helpers;
 
 partial class PathBuilding {
-    private static void GenerateHeadCap(MeshBuilder builder, CapGenerateInfo info, PathCapType type, int roundResolution, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+    private static void GenerateHeadCap(MeshBuilder builder, CapGenerateInfo info, PathCapType type, int roundResolution, WindingDirection windingDirection, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         switch (type) {
-            case PathCapType.Butt: GenerateButtCap(builder, info, writer); break;
+            case PathCapType.Butt: GenerateButtCap(builder, info, windingDirection, writer); break;
             case PathCapType.Round:
                 if (roundResolution == 0) {
-                    GenerateButtCap(builder, info, writer);
+                    GenerateButtCap(builder, info,windingDirection,  writer);
                 } else {
-                    GenerateRoundCap(builder, info, roundResolution, writer, indexFormat);
+                    GenerateRoundCap(builder, info, roundResolution, windingDirection, writer, indexFormat);
                 }
                 break;
-            case PathCapType.Square: GenerateSquareCap(builder, info, writer, indexFormat); break;
+            case PathCapType.Square: GenerateSquareCap(builder, info, windingDirection, writer, indexFormat); break;
         }
         
-        static void GenerateButtCap(MeshBuilder builder, CapGenerateInfo info, VertexWriter<Vertex> writer) {
+        static void GenerateButtCap(MeshBuilder builder, CapGenerateInfo info, WindingDirection windingDirection, VertexWriter<Vertex> writer) {
             var normal = info.Normal * info.Attribute.Thickness / 2;
-            
+
             writer(builder, new(info.Position + normal, info.Attribute.Color));
             writer(builder, new(info.Position - normal, info.Attribute.Color));
         }
 
-        static void GenerateRoundCap(MeshBuilder builder, CapGenerateInfo info, int resolution, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+        static void GenerateRoundCap(MeshBuilder builder, CapGenerateInfo info, int resolution, WindingDirection windingDirection, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
             var halfThickness = info.Attribute.Thickness / 2;
             var normal = info.Normal * halfThickness;
             int vcount = builder.GetLargestWrittenVertexCount();
@@ -92,7 +92,7 @@ partial class PathBuilding {
             }
         }
 
-        static void GenerateSquareCap(MeshBuilder builder, CapGenerateInfo info, VertexWriter<Vertex> writer, IndexFormat format) {
+        static void GenerateSquareCap(MeshBuilder builder, CapGenerateInfo info, WindingDirection windingDirection, VertexWriter<Vertex> writer, IndexFormat format) {
             var halfThickness = info.Attribute.Thickness / 2;
             var normal = info.Normal * halfThickness;
 

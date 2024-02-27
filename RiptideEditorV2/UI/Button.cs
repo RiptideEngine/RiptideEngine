@@ -52,8 +52,8 @@ public sealed unsafe class Button : VisualElement {
         {
             pathBuilder.SetColor(Color32.Red).SetThickness(10)
                        .MoveTo(new(200, 500))
-                       .LineTo(new(200, 600))
-                       .LineTo(new(300, 600))
+                       .VerticalLineRelative(100)
+                       .HorizontalLineRelative(-100)
                        .CloseSubpath(PathCapType.Round);
         }
         pathBuilder.End();

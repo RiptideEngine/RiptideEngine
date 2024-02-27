@@ -1,6 +1,20 @@
 ﻿namespace RiptideFoundation.Helpers;
 
 partial class PathBuilding {
+    private static void ConnectQuadFromIndices(MeshBuilder builder, IndexFormat format, uint i1, uint i2, uint i3, uint i4, uint i5, uint i6) {
+        if (format == IndexFormat.UInt16) {
+            builder.WriteIndices(stackalloc ushort[] {
+                (ushort)i1, (ushort)i2, (ushort)i3,
+                (ushort)i4, (ushort)i5, (ushort)i6,
+            });
+        } else {
+            builder.WriteIndices(stackalloc uint[] {
+                i1, i2, i3,
+                i4, i5, i6,
+            });
+        }
+    }
+    
     private static void PlotQuadraticCurveBody(MeshBuilder builder, Vector2 penPosition, Vector2 control, Vector2 destination, int resolution, PointAttribute previousAttribute, PointAttribute attribute, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         float stepSize = 1f / (resolution + 1);
         
@@ -101,5 +115,11 @@ partial class PathBuilding {
                 start + 0,
             });
         }
+    }
+    
+    private enum WindingDirection {
+        Unknown,
+        Clockwise,
+        CounterClockwise,
     }
 }
