@@ -1,14 +1,13 @@
 ﻿namespace RiptideFoundation.Helpers;
 
-// TODO: Round, Bevel joints.
-// TODO: Bezier Curve resolution.
+// TODO: Customizable Bezier Curve resolution.
 
 partial class PathBuilding {
-    private static void BuildSubpathNoLoop(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
-        const float lineDistanceThreshold = 0.001f;
-        const int BezierCurveResolution = 16;
-
-        const int RoundCapResolution = 8;
+    private static void BuildSubpathNoLoop(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, in PathBuildingConfiguration config, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+        float lineDistanceThreshold = config.LineDistanceThreshold;
+        int BezierCurveResolution = config.BezierCurveResolution;
+        int RoundCapResolution = config.RoundCapResolution;
+        
         PathCapType capType = operations[^1] is { Type: PathOperationType.Close } close ? close.Close.CapType : PathCapType.Butt;
 
         var endCapInformation = Optional<CapGenerateInfo>.Null;
@@ -29,7 +28,7 @@ partial class PathBuilding {
                     Vector2 lineDestination = operation.Line.Destination;
                     var remainOperations = operations[(i + 1)..];
 
-                    var calcWinding = CalculateWindingDirection(penPosition, lineDestination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, lineDestination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -40,7 +39,7 @@ partial class PathBuilding {
                     GenerateHeadCap(builder, new(penPosition, direction, normal, previousPointAttribute), capType, RoundCapResolution, windingDirection, writer, indexFormat);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, lineDestination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, lineDestination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
 
                     endCapInformation = new CapGenerateInfo(lineDestination, direction, normal, new(thickness, color));
@@ -53,7 +52,7 @@ partial class PathBuilding {
                     (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
                     var remainOperations = operations[(i + 1)..];
 
-                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -68,7 +67,7 @@ partial class PathBuilding {
                     normal = new(-direction.Y, direction.X);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
                     
                     endCapInformation = new CapGenerateInfo(destination, direction, normal, new(thickness, color));
@@ -81,7 +80,7 @@ partial class PathBuilding {
                     (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
                     var remainOperations = operations[(i + 1)..];
 
-                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -96,7 +95,7 @@ partial class PathBuilding {
                     normal = new(-direction.Y, direction.X);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
                     endCapInformation = new CapGenerateInfo(destination, direction, normal, new(thickness, color));
                     previousPointAttribute = new(thickness, color);
@@ -126,7 +125,7 @@ partial class PathBuilding {
                     
                     var remainOperations = operations[(i + 1)..];
                     
-                    var calcWinding = CalculateWindingDirection(penPosition, lineDestination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, lineDestination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -135,7 +134,7 @@ partial class PathBuilding {
                     var normal = new Vector2(-direction.Y, direction.X);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, lineDestination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, lineDestination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
 
                     endCapInformation = new CapGenerateInfo(lineDestination, direction, normal, new(thickness, color));
@@ -150,7 +149,7 @@ partial class PathBuilding {
                     (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
                     var remainOperations = operations[(i + 1)..];
 
-                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -161,7 +160,7 @@ partial class PathBuilding {
                     var normal = new Vector2(-direction.Y, direction.X);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
                     
                     endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
@@ -174,7 +173,7 @@ partial class PathBuilding {
                     (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
                     var remainOperations = operations[(i + 1)..];
 
-                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations);
+                    var calcWinding = CalculateWindingDirection(penPosition, destination, remainOperations, config);
                     if (calcWinding != WindingDirection.Unknown && calcWinding != windingDirection) {
                         windingDirection = calcWinding;
                     }
@@ -185,7 +184,7 @@ partial class PathBuilding {
                     var normal = new Vector2(-direction.Y, direction.X);
                     
                     var vcount = builder.GetLargestWrittenVertexCount();
-                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, writer);
+                    GenerateJointVerticesPair(builder, remainOperations, destination, direction, normal, new(thickness, color), windingDirection, config, writer);
                     WriteSegmentQuadIndices(builder, indexFormat, (uint)vcount, windingDirection);
                     
                     endCapInformation = new CapGenerateInfo(destination, direction, new(-direction.Y, direction.X), new(thickness, color));
@@ -201,7 +200,9 @@ partial class PathBuilding {
             GenerateEndCap(builder, information, capType, RoundCapResolution, writer, indexFormat);
         }
 
-        static WindingDirection CalculateWindingDirection(Vector2 previousPosition, Vector2 position, ReadOnlySpan<PathOperation> nextOperations) {
+        static WindingDirection CalculateWindingDirection(Vector2 previousPosition, Vector2 position, ReadOnlySpan<PathOperation> nextOperations, in PathBuildingConfiguration config) {
+            float lineDistanceThreshold = config.LineDistanceThreshold;
+            
             foreach (ref readonly var operation in nextOperations) {
                 switch (operation.Type) {
                     case PathOperationType.SetColor or PathOperationType.SetThickness: continue;
@@ -258,7 +259,9 @@ partial class PathBuilding {
             return WindingDirection.Unknown;
         }
 
-        static bool CalculateIntersectionRays(ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, float thickness, WindingDirection windingDirection, out Ray2D ray1, out Ray2D ray2) {
+        static bool CalculateIntersectionRays(ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, float thickness, WindingDirection windingDirection, in PathBuildingConfiguration config, out Ray2D ray1, out Ray2D ray2) {
+            float lineDistanceThreshold = config.LineDistanceThreshold;
+            
             float nextThickness = thickness;
             
             foreach (ref readonly var operation in operations) {
@@ -322,10 +325,10 @@ partial class PathBuilding {
             return false;
         }
         
-        static void GenerateJointVerticesPair(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, PointAttribute attribute, WindingDirection windingDirection, VertexWriter<Vertex> writer) {
+        static void GenerateJointVerticesPair(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, PointAttribute attribute, WindingDirection windingDirection, in PathBuildingConfiguration config, VertexWriter<Vertex> writer) {
             (float thickness, Color32 color) = attribute;
 
-            bool success = CalculateIntersectionRays(operations, position, direction, normal, thickness, windingDirection, out var ray1, out var ray2);
+            bool success = CalculateIntersectionRays(operations, position, direction, normal, thickness, windingDirection, config, out var ray1, out var ray2);
             if (success) {
                 var intersect = Intersection.Test(ray1, ray2);
                 

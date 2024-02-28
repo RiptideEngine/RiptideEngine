@@ -48,13 +48,18 @@ public sealed unsafe class Button : VisualElement {
 
         float t = (float)(EditorApplication.ElapsedTime * 0.25f % 1);
 
-        pathBuilder.Begin();
+        pathBuilder.Begin(PathBuildingConfiguration.Default with {
+            BezierCurveResolution = 16,
+        });
         {
             pathBuilder.SetColor(Color32.Red).SetThickness(10)
-                       .MoveTo(new(200, 500))
-                       .VerticalLineRelative(100)
-                       .HorizontalLineRelative(-100)
-                       .CloseSubpath(PathCapType.Round);
+                .MoveTo(new(EditorApplication.WindowSize.X / 2f, EditorApplication.WindowSize.Y / 2f));
+
+            for (int i = 0; i < 100; i++) {
+                pathBuilder.LineTo(Random.Shared.NextVector2() * EditorApplication.WindowSize);
+            }
+
+            pathBuilder.CloseSubpath();
         }
         pathBuilder.End();
         

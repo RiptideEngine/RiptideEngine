@@ -3,7 +3,7 @@
 partial class PathBuilding {
     private const float BezierCurveCollinearThreshold = 0.001f;
     
-    private static void BuildSubpathLoop(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
+    private static void BuildSubpathLoop(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, in PathBuildingConfiguration config, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         Optional<PointAttribute> firstPointAttribute = new PointAttribute(thickness, color);
         
         // Alright how do we handle this thing...

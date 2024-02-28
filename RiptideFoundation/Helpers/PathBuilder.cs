@@ -8,10 +8,13 @@ public partial struct PathBuilder {
     private readonly List<PathOperation> _operations;
     private Vector2 _position;
 
+    private PathBuildingConfiguration _config;
+
     public PathBuilder(MeshBuilder builder, VertexWriter<PathBuilding.Vertex> writer, IndexFormat indexFormat) {
         _builder = builder;
         _writer = writer;
         _indexFormat = indexFormat is not IndexFormat.UInt16 and not IndexFormat.UInt32 ? IndexFormat.UInt16 : indexFormat;
+        _config = PathBuildingConfiguration.Default;
 
         _operations = new(16);
     }
@@ -37,16 +40,18 @@ public partial struct PathBuilder {
     }
 
     [UnscopedRef]
-    public ref PathBuilder Begin() {
+    public ref PathBuilder Begin(PathBuildingConfiguration config) {
         if (_operations.Count != 0) {
-            PathBuilding.Build(_builder, CollectionsMarshal.AsSpan(_operations), 1, Color32.White, _writer, _indexFormat);
+            PathBuilding.Build(_builder, CollectionsMarshal.AsSpan(_operations), 1, Color32.White, config, _writer, _indexFormat);
         }
         
         _operations.Clear();
         _position = Vector2.Zero;
+        _config = config;
 
         return ref this;
     }
+    [UnscopedRef] public ref PathBuilder Begin() => ref Begin(PathBuildingConfiguration.Default);
 
     [UnscopedRef]
     public ref PathBuilder MoveTo(Vector2 destination) {
@@ -125,7 +130,7 @@ public partial struct PathBuilder {
     
     [UnscopedRef]
     public ref PathBuilder End() {
-        PathBuilding.Build(_builder, CollectionsMarshal.AsSpan(_operations), 1, Color32.White, _writer, _indexFormat);
+        PathBuilding.Build(_builder, CollectionsMarshal.AsSpan(_operations), 1, Color32.White, _config, _writer, _indexFormat);
 
         return ref this;
     }
