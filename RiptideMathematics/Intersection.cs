@@ -7,10 +7,9 @@ public sealed class Intersection {
 
         var dt = ray2.Position - ray1.Position;
         float u = (dt.Y * ray2.Direction.X - dt.X * ray2.Direction.Y) / det;
+        float v = (dt.Y * ray1.Direction.X - dt.X * ray1.Direction.Y) / det;
         
-        if (u < 0) return null; // Make them act as Ray.
-
-        return ray1.GetPosition(u);
+        return u >= 0 && v >= 0 ? ray1.GetPosition(u) : null;
     }
 
     public static Vector2? Test(Line2D line1, Line2D line2) {

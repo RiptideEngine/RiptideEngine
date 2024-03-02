@@ -5,6 +5,12 @@ public static partial class PathBuilding {
         Vector2 penPosition = Vector2.Zero;
         Optional<int> subpathStartIndex = Optional<int>.Null;
         int startIndex;
+
+        var clampedConfig = config with {
+            LineDistanceThreshold = float.Max(0, config.LineDistanceThreshold),
+            BezierCurveResolution = int.Max(0, config.BezierCurveResolution),
+            RoundCapResolution = int.Max(1, config.RoundCapResolution),
+        };
         
         for (int i = 0; i < operations.Length; i++) {
             ref readonly var operation = ref operations[i];
@@ -30,7 +36,7 @@ public static partial class PathBuilding {
 
                 case PathOperationType.MoveTo: {
                     if (subpathStartIndex.TryGet(out startIndex)) {
-                        BuildSubpath(builder, operations[startIndex..i], ref penPosition, ref thickness, ref color, config, writer, indexFormat);
+                        BuildSubpath(builder, operations[startIndex..i], ref penPosition, ref thickness, ref color, clampedConfig, writer, indexFormat);
                     }
 
                     subpathStartIndex = i + 1;
@@ -41,7 +47,7 @@ public static partial class PathBuilding {
                 case PathOperationType.Close: {
                     if (!subpathStartIndex.TryGet(out startIndex)) continue;
                     
-                    BuildSubpath(builder, operations[startIndex..(i + 1)], ref penPosition, ref thickness, ref color, config, writer, indexFormat);
+                    BuildSubpath(builder, operations[startIndex..(i + 1)], ref penPosition, ref thickness, ref color, clampedConfig, writer, indexFormat);
 
                     subpathStartIndex = Optional<int>.Null;
                     break;
@@ -50,13 +56,13 @@ public static partial class PathBuilding {
         }
 
         if (subpathStartIndex.TryGet(out startIndex)) {
-            BuildSubpath(builder, operations[startIndex..], ref penPosition, ref thickness, ref color, config, writer, indexFormat);
+            BuildSubpath(builder, operations[startIndex..], ref penPosition, ref thickness, ref color, clampedConfig, writer, indexFormat);
         }
     }
     private static void BuildSubpath(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, ref Vector2 penPosition, ref float thickness, ref Color32 color, in PathBuildingConfiguration config, VertexWriter<Vertex> writer, IndexFormat indexFormat) {
         if (operations.IsEmpty) return;
         
-        if (operations[^1] is { Type: PathOperationType.Close, Close.Loop: true }) {
+        if (operations[^1] is { Type: PathOperationType.Close, Close.Loop: PathLooping.Connect or PathLooping.Intersection }) {
             BuildSubpathLoop(builder, operations, ref penPosition, ref thickness, ref color, config, writer, indexFormat);
         } else {
             BuildSubpathNoLoop(builder, operations, ref penPosition, ref thickness, ref color, config, writer, indexFormat);

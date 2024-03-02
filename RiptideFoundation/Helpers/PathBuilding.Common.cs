@@ -68,40 +68,147 @@ partial class PathBuilding {
         }
     }
     
-    private static Optional<Ray2D> GetNextIntersectionRay(ReadOnlySpan<PathOperation> operations, Vector2 position, float thickness, float lineDistanceThreshold) {
+    private static WindingDirection CalculateWindingDirection(Vector2 previousPosition, Vector2 position, ReadOnlySpan<PathOperation> nextOperations, in PathBuildingConfiguration config) {
+        float lineDistanceThreshold = config.LineDistanceThreshold;
+        
+        foreach (ref readonly var operation in nextOperations) {
+            switch (operation.Type) {
+                case PathOperationType.SetColor or PathOperationType.SetThickness: continue;
+                
+                case PathOperationType.LineTo: {
+                    var nextPosition = operation.Line.Destination;
+
+                    if (Vector2.DistanceSquared(position, nextPosition) <= lineDistanceThreshold) continue;
+
+                    var d1 = position - previousPosition;
+                    var d2 = nextPosition - position;
+
+                    var winding = d1.X * d2.Y - d2.X * d1.Y;
+
+                    return winding switch {
+                        0 => WindingDirection.Unknown,
+                        > 0 => WindingDirection.CounterClockwise,
+                        _ => WindingDirection.Clockwise,
+                    };
+                }
+
+                case PathOperationType.QuadraticBezier: {
+                    (var control, var end) = operation.QuadraticBezier;
+                    
+                    var d1 = position - previousPosition;
+                    var d2 = QuadraticBezier.GetVelocity(position, control, end, 0);
+
+                    var winding = d1.X * d2.Y - d2.X * d1.Y;
+                    
+                    return winding switch {
+                        0 => WindingDirection.Unknown,
+                        > 0 => WindingDirection.CounterClockwise,
+                        _ => WindingDirection.Clockwise,
+                    };
+                }
+
+                case PathOperationType.CubicBezier: {
+                    (var startControl, var endControl, var end) = operation.CubicBezier;
+                    
+                    var d1 = position - previousPosition;
+                    var d2 = CubicBezier.GetVelocity(position, startControl, endControl, end, 0);
+
+                    var winding = d1.X * d2.Y - d2.X * d1.Y;
+                    
+                    return winding switch {
+                        0 => WindingDirection.Unknown,
+                        > 0 => WindingDirection.CounterClockwise,
+                        _ => WindingDirection.Clockwise,
+                    };
+                }
+            }
+        }
+
+        return WindingDirection.Unknown;
+    }
+    
+    private static bool CalculateIntersectionRays(ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, float thickness, WindingDirection windingDirection, in PathBuildingConfiguration config, out Ray2D ray1, out Ray2D ray2) {
+        float lineDistanceThreshold = config.LineDistanceThreshold;
+        
         foreach (ref readonly var operation in operations) {
             switch (operation.Type) {
-                case PathOperationType.SetThickness: thickness = operation.Thickness; break;
+                case PathOperationType.SetThickness or PathOperationType.SetColor: continue;
+                
                 case PathOperationType.LineTo: {
                     var destination = operation.Line.Destination;
 
                     if (Vector2.DistanceSquared(position, destination) <= lineDistanceThreshold) continue;
 
-                    var direction = Vector2.Normalize(destination - position);
-                    var normal = new Vector2(-direction.Y, direction.X);
+                    var direction2 = Vector2.Normalize(destination - position);
+                    var normal2 = new Vector2(-direction2.Y, direction2.X);
 
-                    return Optional<Ray2D>.From(Ray2D.CreateWithoutNormalize(position + normal * thickness / 2, -direction));
+                    if (windingDirection == WindingDirection.Clockwise) {
+                        ray1 = Ray2D.CreateWithoutNormalize(position + normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position + normal2 / 2, -direction2);
+                    } else {
+                        ray1 = Ray2D.CreateWithoutNormalize(position - normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position - normal2 / 2, -direction2);
+                    }
+                    return true;
                 }
 
                 case PathOperationType.QuadraticBezier: {
-                    var direction = Vector2.Normalize(QuadraticBezier.GetVelocity(position, operation.QuadraticBezier.Control, operation.QuadraticBezier.Destination, 0));
-                    var normal = new Vector2(-direction.Y, direction.X);
+                    (Vector2 control, Vector2 destination) = operation.QuadraticBezier;
 
-                    return Optional<Ray2D>.From(Ray2D.CreateWithoutNormalize(position + normal * thickness / 2, -direction));
+                    var direction2 = Vector2.Normalize(QuadraticBezier.GetVelocity(position, control, destination, 0));
+                    var normal2 = new Vector2(-direction2.Y, direction2.X);
+
+                    if (windingDirection == WindingDirection.Clockwise) {
+                        ray1 = Ray2D.CreateWithoutNormalize(position + normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position + normal2 / 2, -direction2);
+                    } else {
+                        ray1 = Ray2D.CreateWithoutNormalize(position - normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position - normal2 / 2, -direction2);
+                    }
+                    return true;
                 }
-
+                    
                 case PathOperationType.CubicBezier: {
-                    var direction = Vector2.Normalize(CubicBezier.GetVelocity(position, operation.CubicBezier.StartControl, operation.CubicBezier.EndControl, operation.CubicBezier.Destination, 0));
-                    var normal = new Vector2(-direction.Y, direction.X);
+                    (Vector2 startControl, Vector2 endControl, Vector2 destination) = operation.CubicBezier;
 
-                    return Optional<Ray2D>.From(Ray2D.CreateWithoutNormalize(position + normal * thickness / 2, -direction));
+                    var direction2 = Vector2.Normalize(CubicBezier.GetVelocity(position, startControl, endControl, destination, 0));
+                    var normal2 = new Vector2(-direction2.Y, direction2.X);
+                    
+                    if (windingDirection == WindingDirection.Clockwise) {
+                        ray1 = Ray2D.CreateWithoutNormalize(position + normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position + normal2 / 2, -direction2);
+                    } else {
+                        ray1 = Ray2D.CreateWithoutNormalize(position - normal / 2, direction);
+                        ray2 = Ray2D.CreateWithoutNormalize(position - normal2 / 2, -direction2);
+                    }
+                    return true;
                 }
-
-                default: continue;
             }
         }
+
+        ray1 = ray2 = default;
+        return false;
+    }
     
-        return Optional<Ray2D>.Null;
+    private static void GenerateJointVerticesPair(MeshBuilder builder, ReadOnlySpan<PathOperation> operations, Vector2 position, Vector2 direction, Vector2 normal, PointAttribute attribute, WindingDirection windingDirection, in PathBuildingConfiguration config, VertexWriter<Vertex> writer) {
+        (float thickness, Color32 color) = attribute;
+
+        bool success = CalculateIntersectionRays(operations, position, direction, normal, thickness, windingDirection, config, out var ray1, out var ray2);
+        if (success && Intersection.Test(ray1, ray2) is { } intersect) {
+            var intersectDistance = Vector2.Distance(position, intersect);
+            var extrudeDirection = Vector2.Normalize(intersect - position) * intersectDistance * thickness / 2;
+            
+            if (windingDirection == WindingDirection.Clockwise) {
+                writer(builder, new(position + extrudeDirection, color));
+                writer(builder, new(position - extrudeDirection, color));
+            } else {
+                writer(builder, new(position - extrudeDirection, color));
+                writer(builder, new(position + extrudeDirection, color));
+            }
+        } else {
+            writer(builder, new(position + normal * thickness / 2, color));
+            writer(builder, new(position - normal * thickness / 2, color));
+        }
     }
     
     private enum WindingDirection {

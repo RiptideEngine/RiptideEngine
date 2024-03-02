@@ -30,6 +30,6 @@ internal readonly struct PathOperation {
         
     public struct CloseOperation {
         public required PathCapType CapType;
-        public required bool Loop;
+        public required PathLooping Loop;
     }
 }

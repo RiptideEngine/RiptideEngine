@@ -1,6 +1,6 @@
 ﻿namespace RiptideMathematics;
 
-public static class MathUtils {
+public static partial class MathUtils {
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public static T Remap<T>(T input, T inMin, T inMax, T outMin, T outMax) where T : IAdditionOperators<T, T, T>, ISubtractionOperators<T, T, T>, IMultiplyOperators<T, T, T>, IDivisionOperators<T, T, T> {
         return outMin + (input - inMin) * (outMax - outMin) / (inMax - inMin);

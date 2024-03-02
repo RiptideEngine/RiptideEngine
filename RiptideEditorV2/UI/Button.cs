@@ -46,30 +46,61 @@ public sealed unsafe class Button : VisualElement {
 
         var pathBuilder = new PathBuilder(builder, Writer, IndexFormat.UInt16);
 
-        float t = (float)(EditorApplication.ElapsedTime * 0.25f % 1);
+        // TODO: Calculate the smooth resolution based on button size.
 
         pathBuilder.Begin(PathBuildingConfiguration.Default with {
-            BezierCurveResolution = 16,
+            BezierCurveResolution = 32,
         });
         {
-            pathBuilder.SetColor(Color32.Red).SetThickness(10)
-                .MoveTo(new(EditorApplication.WindowSize.X / 2f, EditorApplication.WindowSize.Y / 2f));
+            pathBuilder.SetColor(Color32.White).SetThickness(10);
 
-            for (int i = 0; i < 100; i++) {
-                pathBuilder.LineTo(Random.Shared.NextVector2() * EditorApplication.WindowSize);
-            }
+            pathBuilder.MoveTo(400, 500);
+            pathBuilder.BezierRelative(new(50, -200), new(450, -200), new(500, 0));
+            pathBuilder.CloseSubpath(PathLooping.None);
 
-            pathBuilder.CloseSubpath();
+            // pathBuilder.SetColor(Color32.White).SetThickness(15);
+            //
+            // var start = Vector2.Transform(new(borderRadii.X, 0), transformation);
+            // pathBuilder.MoveTo(start);
+            //
+            // float radius = borderRadii.Y;
+            // if (radius <= 0.01f) {
+            //     pathBuilder.LineTo(Vector2.Transform(new(w, 0), transformation));
+            // } else {
+            //     pathBuilder.LineTo(Vector2.Transform(new(w - radius, 0), transformation));
+            //     pathBuilder.LineTo(Vector2.Transform(new(w, radius), transformation));
+            // }
+            //
+            // radius = borderRadii.Z;
+            // if (radius <= 0.01f) {
+            //     pathBuilder.LineTo(Vector2.Transform(new(w, h), transformation));
+            // } else {
+            //     pathBuilder.LineTo(Vector2.Transform(new(w, h - radius), transformation));
+            //     pathBuilder.LineTo(Vector2.Transform(new(w - radius, h), transformation));
+            // }
+            //
+            // radius = borderRadii.W;
+            // if (radius <= 0.01f) {
+            //     pathBuilder.LineTo(Vector2.Transform(new(0, h), transformation));
+            // } else {
+            //     pathBuilder.LineTo(Vector2.Transform(new(radius, h), transformation));
+            //     pathBuilder.LineTo(Vector2.Transform(new(0, h - radius), transformation));
+            // }
+            //
+            // radius = borderRadii.X;
+            // if (radius <= 0.01f) {
+            //     pathBuilder.LineTo(transformation.Translation);
+            // } else {
+            //     pathBuilder.LineTo(Vector2.Transform(new(0, radius), transformation));
+            //     pathBuilder.LineTo(start);
+            // }
+            //
+            // pathBuilder.CloseSubpath(looping: false);
         }
         pathBuilder.End();
         
         static void Writer(MeshBuilder builder, PathBuilding.Vertex vertex) {
             builder.WriteVertex(new Vertex(vertex.Position, Vector2.Zero, vertex.Color));
-        }
-
-        static int CalculateSegmentResolution(float radius) {
-            float length = float.Pi / 2 * radius;
-            return (int)float.Ceiling(float.Sinh(float.Pow(length, 0.2f)) + 1);
         }
     }
 }

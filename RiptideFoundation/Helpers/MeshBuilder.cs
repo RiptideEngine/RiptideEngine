@@ -119,7 +119,15 @@ public sealed unsafe class MeshBuilder : IDisposable {
         }
 
         return value;
-    }    
+    }
+
+    public void Clear() {
+        _indices.Clear();
+        
+        foreach (var segment in _segments) {
+            segment?.Clear();
+        }
+    }
     
     public void Commit(CommandList cmdList, Mesh receiver, bool forceFit) {
         if (!Mesh.CheckLayoutCompatibility(receiver.VertexDescriptors, _vdescs)) {

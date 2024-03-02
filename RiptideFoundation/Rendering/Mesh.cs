@@ -161,14 +161,19 @@ public sealed class Mesh : RenderingObject {
             return;
         }
 
-        if (IndexBuffer != null && IndexBuffer.Description.Width != byteSize) {
-            IndexBuffer?.DecrementReference();
+        if (IndexBuffer == null) {
+            IndexBuffer = Graphics.RenderingContext.Factory.CreateBuffer(new() {
+                Width = byteSize,
+            });
+            IndexBuffer.Name = $"{Name}.IndexBuffer";
+        } else if (IndexBuffer.Description.Width != byteSize) {
+            IndexBuffer.DecrementReference();
+            
+            IndexBuffer = Graphics.RenderingContext.Factory.CreateBuffer(new() {
+                Width = byteSize,
+            });
+            IndexBuffer.Name = $"{Name}.IndexBuffer";
         }
-        
-        IndexBuffer = Graphics.RenderingContext.Factory.CreateBuffer(new() {
-            Width = byteSize,
-        });
-        IndexBuffer.Name = $"{Name}.IndexBuffer";
     }
 
     public void SetSubmesh(int index, SubmeshInformation submesh) {
