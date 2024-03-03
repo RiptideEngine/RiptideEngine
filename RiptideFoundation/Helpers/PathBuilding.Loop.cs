@@ -344,8 +344,8 @@ partial class PathBuilding {
                                     writer(builder, new(intersect1.Value, interpolatedColor));
                                     writer(builder, new(intersect2.Value, interpolatedColor));
                                 
-                                    ConnectQuadFromIndices(builder, indexFormat, headvcount, vcount, vcount + 1, vcount + 1, headvcount + 1, headvcount);
-                                    ConnectQuadFromIndices(builder, indexFormat, vcount, tailvcount, tailvcount + 1, tailvcount + 1, vcount + 1, vcount);
+                                    ConnectTrianglePairFromIndices(builder, indexFormat, headvcount, vcount, vcount + 1, vcount + 1, headvcount + 1, headvcount);
+                                    ConnectTrianglePairFromIndices(builder, indexFormat, vcount, tailvcount, tailvcount + 1, tailvcount + 1, vcount + 1, vcount);
                                 } else {
                                     
                                 }

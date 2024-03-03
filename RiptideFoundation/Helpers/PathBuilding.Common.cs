@@ -3,13 +3,25 @@
 partial class PathBuilding {
     private static void WriteSegmentQuadIndices(MeshBuilder builder, IndexFormat format, uint vcount, WindingDirection windingDirection) {
         if (windingDirection == WindingDirection.Clockwise) {
-            ConnectQuadFromIndices(builder, format, vcount + 1, vcount - 1, vcount - 2, vcount - 2, vcount, vcount + 1);
+            ConnectTrianglePairFromIndices(builder, format, vcount + 1, vcount - 1, vcount - 2, vcount - 2, vcount, vcount + 1);
         } else {
-            ConnectQuadFromIndices(builder, format, vcount - 2, vcount, vcount + 1, vcount + 1, vcount - 1, vcount - 2);
+            ConnectTrianglePairFromIndices(builder, format, vcount - 2, vcount, vcount + 1, vcount + 1, vcount - 1, vcount - 2);
         }
     }
     
-    private static void ConnectQuadFromIndices(MeshBuilder builder, IndexFormat format, uint i1, uint i2, uint i3, uint i4, uint i5, uint i6) {
+    private static void ConnectTriangleFromIndices(MeshBuilder builder, IndexFormat format, uint i1, uint i2, uint i3) {
+        if (format == IndexFormat.UInt16) {
+            builder.WriteIndices(stackalloc ushort[] {
+                (ushort)i1, (ushort)i2, (ushort)i3,
+            });
+        } else {
+            builder.WriteIndices(stackalloc uint[] {
+                i1, i2, i3,
+            });
+        }
+    }
+    
+    private static void ConnectTrianglePairFromIndices(MeshBuilder builder, IndexFormat format, uint i1, uint i2, uint i3, uint i4, uint i5, uint i6) {
         if (format == IndexFormat.UInt16) {
             builder.WriteIndices(stackalloc ushort[] {
                 (ushort)i1, (ushort)i2, (ushort)i3,
@@ -20,6 +32,15 @@ partial class PathBuilding {
                 i1, i2, i3,
                 i4, i5, i6,
             });
+        }
+    }
+
+    private static void ExecuteRemainConfiguratingOperations(ReadOnlySpan<PathOperation> operations, ref float thickness, ref Color32 color) {
+        foreach (ref readonly var operation in operations) {
+            switch (operation.Type) {
+                case PathOperationType.SetThickness: thickness = operation.Thickness; break;
+                case PathOperationType.SetColor: color = operation.Color; break;
+            }
         }
     }
     
@@ -78,8 +99,6 @@ partial class PathBuilding {
                 case PathOperationType.LineTo: {
                     var nextPosition = operation.Line.Destination;
 
-                    if (Vector2.DistanceSquared(position, nextPosition) <= lineDistanceThreshold) continue;
-
                     var d1 = position - previousPosition;
                     var d2 = nextPosition - position;
 
@@ -136,8 +155,6 @@ partial class PathBuilding {
                 
                 case PathOperationType.LineTo: {
                     var destination = operation.Line.Destination;
-
-                    if (Vector2.DistanceSquared(position, destination) <= lineDistanceThreshold) continue;
 
                     var direction2 = Vector2.Normalize(destination - position);
                     var normal2 = new Vector2(-direction2.Y, direction2.X);
@@ -196,8 +213,8 @@ partial class PathBuilding {
         bool success = CalculateIntersectionRays(operations, position, direction, normal, thickness, windingDirection, config, out var ray1, out var ray2);
         if (success && Intersection.Test(ray1, ray2) is { } intersect) {
             var intersectDistance = Vector2.Distance(position, intersect);
-            var extrudeDirection = Vector2.Normalize(intersect - position) * intersectDistance * thickness / 2;
-            
+            var extrudeDirection = Vector2.Normalize(intersect - position) * intersectDistance * thickness;
+
             if (windingDirection == WindingDirection.Clockwise) {
                 writer(builder, new(position + extrudeDirection, color));
                 writer(builder, new(position - extrudeDirection, color));
@@ -209,6 +226,32 @@ partial class PathBuilding {
             writer(builder, new(position + normal * thickness / 2, color));
             writer(builder, new(position - normal * thickness / 2, color));
         }
+    }
+
+    private static bool TryGetFirstAndLastPlottingOperations(ReadOnlySpan<PathOperation> operations, out int start, out int end) {
+        for (int i = 0; i < operations.Length; i++) {
+            ref readonly var operation = ref operations[i];
+
+            switch (operation.Type) {
+                case PathOperationType.LineTo or PathOperationType.QuadraticBezier or PathOperationType.CubicBezier:
+                    start = i;
+
+                    for (int j = operations.Length - 1; j >= i; j--) {
+                        ref readonly var operation2 = ref operations[j];
+
+                        switch (operation2.Type) {
+                            case PathOperationType.LineTo or PathOperationType.QuadraticBezier or PathOperationType.CubicBezier:
+                                end = j;
+                                return true;
+                        }
+                    }
+
+                    throw new UnreachableException();
+            }
+        }
+
+        start = end = 0;
+        return false;
     }
     
     private enum WindingDirection {
